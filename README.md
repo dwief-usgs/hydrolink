@@ -10,7 +10,7 @@ Daniel Wieferich (dwieferich@usgs.gov)
 -----------
 Purpose:
 -----------
-It is often advantagous to link observation and spatial feature data to the National Hydrography Dataset (NHD), which provides network context and additional hydrography information for research and anlysis purposes.
+Linking observation and spatial feature data to the National Hydrography Dataset (NHD) provides context to the hydrographic network and provides access to additional hydrography information within the NHD for research and analitical purposes.
 This repository contains Python code that explores methods that link sampling and feature information to the NHDPlusV2 and NHDHR datasets using a batch approach and providing a level of certainty.  
 
   
