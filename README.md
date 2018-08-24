@@ -18,16 +18,16 @@ This repository contains Python code that explores methods that link sampling an
 Additional Details:
 -----------
 This code performs a hydrolink batch process on a text file (.csv ) or shapefile (.shp) using user defined latitude and longitude fields. 
-The code returns the reachcode and measure of the closest position on the High Resolution National Hydrography Dataset and the Medium Resolution NHDPlusV2.1 using web services. 
-The code also uses snap distance and stream name to help quantify a level of certainty. Levels of certainty currently exist only for the NHDPlusV2.1, due to the availability of 
-needed information from current web services.  
+The code returns the reachcode and measure of the closest position on the High Resolution National Hydrography Dataset, the Medium Resolution NHDPlusV2, or both versions of NHD using web services
+(no downloading of NHD data is necessary). The code also uses snap distance and stream name to help quantify a level of certainty. Levels of certainty currently 
+are a work in progress.  
   
 To help standardize linked data processes, the code uses similar methods (based on available web services) to link information to the hydrography as the USGS HydroLink Tool ( https://maps.usgs.gov/hydrolink/ ).
   
 -----------
 Development Status:
 -------------------
-Software documented in this repository are unpublished and will often be under development.  Collaborative efforts to help improve code are encouraged.
+Software documented in this repository are unpublished and are under development.  Collaborative efforts to help improve code are encouraged.
 This software is preliminary or provisional and is subject to revision. It is being provided to meet the need for timely best science. 
 The software has not received final approval by the U.S. Geological Survey (USGS). No warranty, expressed or implied, is made by the USGS or the U.S. Government as to the functionality of the software and related material nor shall the fact of release constitute any such warranty. The software is provided on the condition that neither the USGS nor the U.S. Government shall be held liable for any damages resulting from the authorized or unauthorized use of the software. 
 
