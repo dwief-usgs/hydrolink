@@ -13,16 +13,16 @@ import os.path
 ############################################################################################
 '''
 Author
----------
+------------
 Daniel Wieferich: dwieferich@usgs.gov
 
 Description
----------
+------------
 Module that allows for hydrolinking of data to the High Resolution National Hydrography Dataset.
 Classes and methods are designed to handle one feature at a time.
 '''
 class HighResPoint:
-    def __init__(self, feature_id, init_lat, init_lon, init_crs=4269, stream_name=None, buffer_m=1000):
+    def __init__(self, input_identifier, input_lat, input_lon, input_crs=4269, stream_name=None, buffer_m=1000):
         '''
         Description
         ------------
@@ -30,11 +30,11 @@ class HighResPoint:
         
         Parameters
         ------------
-        feature_id: str, user supplied identifier
-        init_lat: float, latitude of the point to be hydrolinked
-        init_lon: float, longitude of the point to be hydrolinked
-        init_crs: int, coordinate reference system, default is 4269 which is NAD83
-        stream_name: user supplied name of the stream a point is intended to be linked, optional
+        input_identifier: str, user supplied identifier
+        input_lat: float, latitude of the point to be hydrolinked
+        input_lon: float, longitude of the point to be hydrolinked
+        input_crs: int, coordinate reference system, default is 4269 which is NAD83
+        stream_name: str, user supplied name of the stream a point is intended to be linked, optional
         buffer_m: distance in meters to search around a point, for identifying reaches of interest, max is 2000
 
         Notes
@@ -48,10 +48,10 @@ class HighResPoint:
             self.message('Buffer is to large, reduce buffer to less than 2000 meters.')
             self.status = 0
         else:
-            self.id = str(feature_id)
-            self.init_lat = float(init_lat)
-            self.init_lon = float(init_lon)
-            self.init_crs = int(init_crs)
+            self.id = str(input_identifier)
+            self.init_lat = float(input_lat)
+            self.init_lon = float(input_lon)
+            self.init_crs = int(input_crs)
             self.stream_name = str(stream_name)
             self.buffer_m = int(buffer_m)
             self.status = 1  # where 0 is failed, 1 is worked
@@ -61,23 +61,19 @@ class HighResPoint:
             self.best_reach = {
                 'init_id':feature_id, 
                 'init_stream':stream_name,
-                'stream_clean_ref': stream_name.lower()
-                }
-            self.no_data = {
+                'stream_clean_ref': stream_name.lower(),
                 'GNIS_NAME': None,
                 'LENGTHKM': None,
                 'PERMANENT_IDENTIFIER': None,
                 'REACHCODE': None,
-                'geometry': None,
-                'snap_meas': None,
                 'snap_xy': None,
-                'hl_snap_meters': None,
-                'to_node_meters': None,
+                'snap_m': None,
+                'closest_node_m': None,
                 'closest': None,
                 'name_check': None,
                 'mult_reach_ct': None,
                 'name_check_txt': None,
-                'meas': None
+                'hr_meas': None
                 }
         
     def crs_to_4269(self):
@@ -111,7 +107,6 @@ class HighResPoint:
                 if self.init_lat and (float(self.init_lat) > 17.5 and float(self.init_lat) < 71.5) and self.init_lon and (float(self.init_lon) < -64.0 and float(self.init_lon)> -178.5):
                     self.message = f'Coordinates for id: {self.id} are outside of the bounding box of the United States.'
                     self.error_handling()
-                
             except:
                 self.message = f'Issues handling provided coordinate system for {self.id}. Consider using a common crs like 4269 (NAD83) or 4326 (WGS84).'
                 self.error_handling()
@@ -122,18 +117,23 @@ class HighResPoint:
         ------------
         Builds query needed to return reaches of interest based on coordinates and buffer supplied by user.
         Currently only HEM service option is supported.
+        TNM stands for The National Map
+        HEM stands for Hydro Event Managmeent, see documentation https://edits.nationalmap.gov/hem-soe-docs/
+        NHD stands for National Hydrography Dataset https://www.usgs.gov/core-science-systems/ngp/national-hydrography
+        HRPlus stands for National Hydrography Dataset Plus https://www.usgs.gov/core-science-systems/ngp/national-hydrography/nhdplus-high-resolution
         
         Parameters
         ------------
-        service = define web service to use for query, options "HEM", "TNM_HR", "TNM_HRPlus", where TNM stands for The National Map
+        service = define web service to use for query, options "HEM", "TNM_HR", "TNM_HRPlus"
+                  
         
         Note(s)
         ------------
-        HEM service is currently recommended. Currently recommended service because all flowlines are in one mapservice layer.  Provides a recent version of NHD.
+        HEM: recommended for high resolution. all flowlines are in one mapservice layer.  Provides a recent version of NHD.
         TNM_HR service splits flowlines into in-network and non-network and thus may require multiple service calls
         TNM_HRPlus service uses a snap-shot of NHD. This service also splits flowlines into in-network and non-network and thus may require multiple service calls
         '''
-        q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=GEOJSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
+        q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
         if service == 'HEM':
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.reach_query = f"{base_url}{q}"
@@ -159,55 +159,63 @@ class HighResPoint:
         ------------
         n = int, number of reaches to return via self.reach_df   
         '''
-        if self.status==1:
+        if self.status==1:  #if status = 0 we don't want to waste time processing
             try:
-                self.reach_geojson = requests.get(self.reach_query).json() #bringing data directly into geopandas losses measures... need to look into avoiding this
-                gdf = gpd.read_file(self.reach_query) #ideally use self.reach_geojson to create gdf (this was just easier for testing but does not include )
+                self.reach_json = requests.get(self.reach_query).json()
+                if 'features' in self.reach_json.keys() and len(self.reach_json['features'])>0:
 
-                #  test if any data was returned
-                if len(gdf.index)>0:
-                    init_point = Point(self.init_lon, self.init_lat)    
-                    gdf['snap_meas']=gdf.geometry.project(init_point) #for df calculate measure down reach where init point would snap to that reach
-                    id_list = list(set(gdf['PERMANENT_IDENTIFIER'].tolist())) #create list of identifiers
+                    init_point = Point(self.init_lon, self.init_lat)  
+
                     reach_data = []
+                    for line in self.reach_json['features']:
+                        attributes = line['attributes']
+                        line_geo = LineString([Point(float(x[0]),float(x[1])) for x in line['geometry']['paths'][0]]) #assumes not multi line
 
-                    #Wanted to run interpolate on entire gdf but geopandas is looking for a value and wont run on df               
-                    for pid in id_list:
-                        reach_gdf = gdf.loc[gdf['PERMANENT_IDENTIFIER']==pid]
-                        reach_gdf['snap_xy']=reach_gdf.geometry.interpolate(reach_gdf.iloc[0]['snap_meas']) #for reach find x,y on line closest to input x,y
-                        snap_xy = reach_gdf.iloc[0]['snap_xy']
-
-                        # build line representing snap path and measure it
+                        #shortest distance from initial coordinates to the line
+                        snap_meas = line_geo.project(init_point)
+                        snap_xy = line_geo.interpolate(snap_meas) #for reach find x,y on line closest to input x,y
                         snap_point = Point(snap_xy.x, snap_xy.y)
-                        hl_snap_meters = build_meas_line(snap_point, init_point, crs={'init':'epsg:4269'})
-
+                        snap_m = build_meas_line(snap_point, init_point, crs={'init':'epsg:4269'})
+                        
                         # build lines to terminal nodes of reach and measure them
-                        for line in self.reach_geojson['features']:
-                            if line['properties']['PERMANENT_IDENTIFIER']==pid:
-                                m_range = [x[3] for x in line['geometry']['coordinates']]
-                                for node in line['geometry']['coordinates']:
-                                    max_m = max(m_range)
-                                    min_m = min(m_range)
-                                    if node[3]==max_m:
-                                        max_coord = Point(node[0], node[1])
-                                        to_max_coord_meters = build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'})
-                                    elif node[3]==min_m:
-                                        min_coord = Point(node[0], node[1]) 
-                                        to_min_coord_meters = build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'})
-                                to_node_meters = min(to_min_coord_meters, to_max_coord_meters)
+                        meters_to_up_node = None
+                        meters_to_dwn_node = None
+                        closest_node_m = None
+                        for node in line['geometry']['paths'][0]:
+                            if node[2]==100:    #upstream confluence or upstream most point on network     
+                                max_coord = Point(node[0], node[1])
+                                meters_to_up_node = build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
+                            elif node[2]==0:
+                                min_coord = Point(node[0], node[1])
+                                meters_to_dwn_node = build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstream end
+                        if meters_to_dwn_node or meters_to_up_node:   #if one is not none
+                            closest_node_m = min(list(filter(None, [meters_to_dwn_node, meters_to_up_node])))
 
-                        #build dictionary of results
-                        d = reach_gdf.iloc[0].to_dict()
-                        d.update({"hl_snap_meters":hl_snap_meters,"to_node_meters":to_node_meters})
-                        reach_data.append(d)
+                        #old code looking at range, confluence should (I think always be 0 or 100 measure nodes)
+                        # meas_range = [x[2] for x in line['geometry']['paths'][0]]
+                        # for node in line['geometry']['paths'][0]:
+                        #     max_meas = max(meas_range)
+                        #     min_meas = min(meas_range)
+                        #     if node[2]==max_meas:
+                        #         max_coord = Point(node[0], node[1])
+                        #         meters_to_up_node = build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
+                        #     elif node[2]==min_meas:
+                        #         min_coord = Point(node[0], node[1])
+                        #         meters_to_dwn_node = build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstreaem end
+                        
+                        #closest_node_m = min(meters_to_dwn_node, meters_to_up_node)  #meters to closest node/confluence of the reach (upstream or downstream)
+                        
+                        attributes.update({'closest_node_m':closest_node_m, 'snap_m':snap_m, 'snap_xy':snap_xy})
+                        reach_data.append(attributes)
 
-                    #keep n number of closest reaches, order them ascendingly and number closest=1 to furthest=n 
-                    df = (pd.DataFrame(reach_data)).nsmallest(n,'hl_snap_meters',keep='all')
-                    df = df.sort_values(by=['hl_snap_meters'])
-                    df = df.reset_index(drop=True)
-                    df['closest'] = df.index +1
+                        #keep n number of closest reaches, order them ascendingly and number closest=1 to furthest=n 
+                        df = (pd.DataFrame(reach_data)).nsmallest(n,'snap_m',keep='all')
+                        df = df.sort_values(by=['snap_m'])
+                        df = df.reset_index(drop=True)
+                        df['closest'] = df.index +1
 
-                    self.reach_df = df
+                        #df.drop(['geometry','snap_meas'],axis=1)
+                        self.reach_df = df
                 else:
                     self.message = f'no reaches retrieved for id: {self.id}'
                     self.error_handling()
@@ -222,39 +230,39 @@ class HighResPoint:
         at one time but the fuzzy match was not working so current work around using itertuples.  Also
         should be able to delete name_check_text.
         '''
-        if self.status==1:
-            if self.reach_df is not None and hasattr(self, 'reach_df') and hasattr(self, 'stream_name'):
+        if self.status==1:  #if status = 0 we don't want to waste time processing
+            if self.reach_df is not None and self.stream_name is not None:
                 df = self.reach_df
-                if 'GNIS_NAME' in df and self.stream_name is not None:
-                    #If GNIS is not null and names match assign a 1
-                    df['name_check'] = np.where((df.GNIS_NAME.notnull()) & (df.GNIS_NAME.str.lower()==self.stream_name.lower()), 1.0, 0)
-                    for row in df.itertuples():
-                        #pid = (row.PERMANENT_IDENTIFIER)
-                        if row.name_check == 1:
-                            df.at[row.Index, 'name_check_txt'] = 'exact match of stream names'
-                            self.best_reach.update({'stream_clean_ref':self.stream_name.lower()})
+                #If GNIS is not null and names match assign a 1
+                df['name_check'] = np.where((df.GNIS_NAME.notnull()) & (df.GNIS_NAME.str.lower()==self.stream_name.lower()), 1.0, 0)
+                for row in df.itertuples():
+                    #pid = (row.PERMANENT_IDENTIFIER)
+                    if row.name_check == 1:
+                        df.at[row.Index, 'name_check_txt'] = 'exact match of stream names'
+                        self.best_reach.update({'stream_clean_ref':self.stream_name.lower()})
 
-                        elif row.GNIS_NAME and self.stream_name is not None:
-                            gnis= (row.GNIS_NAME).lower()
-                            #stream_lc = (item.stream_name).lower()
-                            stream_lc = clean_stream_name(self.stream_name)
-                            self.best_reach.update({'stream_clean_ref':stream_lc})
-                            if 'tributary' not in stream_lc and 'branch' not in stream_lc:
-                                match_ratio = difflib.SequenceMatcher(lambda x: x == " ", gnis, stream_lc).ratio()
-                                df.at[row.Index, 'name_check'] = match_ratio
-                                # If match ratio is greater than 0.75, update df field 'name_check_txt'
-                                if match_ratio >= 0.75:
-                                    df.at[row.Index, 'name_check_txt'] = 'most likely match of stream names based on fuzzy match'
-                                # If match ratio is greater than 0.6 and less than 0.6, update df field 'name_check_txt'
-                                elif 0.75 > match_ratio >= 0.6:
-                                    df.at[row.Index, 'name_check_txt'] = 'likely match of stream names based on fuzzy match'                
-                            else:
-                                df.at[row.Index, 'name_check_txt'] = 'no stream matching occured due to name containing reference to tributary' 
+                    elif row.GNIS_NAME and self.stream_name is not None:
+                        gnis= (row.GNIS_NAME).lower()
+                        #stream_lc = (item.stream_name).lower()
+                        stream_lc = clean_stream_name(self.stream_name)
+                        self.best_reach.update({'stream_clean_ref':stream_lc})
+                        if 'tributary' not in stream_lc and 'branch' not in stream_lc:
+                            match_ratio = difflib.SequenceMatcher(lambda x: x == " ", gnis, stream_lc).ratio()
+                            df.at[row.Index, 'name_check'] = match_ratio
+                            # If match ratio is greater than 0.75, update df field 'name_check_txt'
+                            if match_ratio >= 0.75:
+                                df.at[row.Index, 'name_check_txt'] = 'most likely match of stream names based on fuzzy match'
+                            # If match ratio is greater than 0.6 and less than 0.6, update df field 'name_check_txt'
+                            elif 0.75 > match_ratio >= 0.6:
+                                df.at[row.Index, 'name_check_txt'] = 'likely match of stream names based on fuzzy match'                
                         else:
-                            df.at[row.Index, 'name_check_txt'] = 'stream names are unlikely match'
-                else:
-                    df['name_check_txt'] = 'missing one or both stream names'
-                    df['name_check'] = 0
+                            df.at[row.Index, 'name_check_txt'] = 'no stream matching occured due to name containing reference to tributary' 
+                    else:
+                        df.at[row.Index, 'name_check_txt'] = 'stream name and or gnis name not provided'
+                        df.at[row.Index, 'name_check'] = 0
+            else:
+                df['name_check_txt'] = 'no stream name provided'
+                df['name_check'] = 0
         
     def select_best_reach(self):
         '''
@@ -281,7 +289,7 @@ class HighResPoint:
                     vals.update({'mult_reach_ct': len(name_check_1)})
                     self.best_reach.update(vals)
                 elif len(name_check_1.index)>1:
-                    closest = name_check_1.nsmallest(1,'hl_snap_meters', keep='all')
+                    closest = name_check_1.nsmallest(1,'snap_m', keep='all')
                     #take first indexed reach in list of closest reaches
                     #if multiple reaches have same hl_snap_meters and matching stream names the count will be recorded in "mult_reach_ct" field
                     vals = closest.iloc[0].to_dict()
@@ -294,12 +302,12 @@ class HighResPoint:
                         vals.update({'mult_reach_ct':len(name_check_lt1)})
                         self.best_reach.update(vals)
                     elif len(name_check_lt1.index)>1:
-                        closest = name_check_lt1.nsmallest(1,'hl_snap_meters', keep='all')
+                        closest = name_check_lt1.nsmallest(1,'snap_m', keep='all')
                         vals = closest.iloc[0].to_dict()
                         vals.update({'mult_reach_ct':len(closest)})
                         self.best_reach.update(vals)
                     elif len(name_check_lt1.index)==0:
-                        closest = df.nsmallest(1,'hl_snap_meters', keep='all')
+                        closest = df.nsmallest(1,'snap_m', keep='all')
                         vals = closest.iloc[0].to_dict()
                         vals.update({'mult_reach_ct':len(closest)})
                         self.best_reach.update(vals)
@@ -309,9 +317,9 @@ class HighResPoint:
             else:
                 self.message = f'no dataframe for: {self.id}. make sure functions are called in correct sequence'
                 self.error_handling()
-        self.best_reach.update(self.message)
+        self.best_reach.update({'message':self.message})
         
-    def get_hem_measure(self):
+    def get_hl_measure(self):
         '''
         Description
         ------------
@@ -329,19 +337,20 @@ class HighResPoint:
                 payload = {
                         "point": xy ,
                         "reachcode": reach,
-                        "searchToleranceMeters": 5,
+                        "searchToleranceMeters": 15,
                         "outWKID": 4269,
                         "f": "json"
                         }
 
                 hr_xy = requests.post(hem_get_hr_xy,params=payload,verify=False).json()
+                
                 if hr_xy['resultStatus'] == 'success' and hr_xy['features']:
                     self.hl_reach_meas = hr_xy['features'][0]['attributes']
                     meas = hr_xy['features'][0]['attributes']['MEASURE']
-                    self.best_reach.update({"meas": meas})
+                    self.best_reach.update({"hr_meas": meas})
                 else:
                     self.message='get_hem_measure failed'
-                    self.best_reach.update({"meas": None, 'message': self.message})
+                    self.best_reach.update({"hr_meas": None, 'message': self.message})
             else:
                 self.message = f'no reachcode for running measure on id: {self.id}'
                 self.best_reach.update(self.no_data)
@@ -356,7 +365,7 @@ class HighResPoint:
         when error is captured, document and send message to user
         '''
         self.status = 0
-        self.best_reach.update(self.no_data)
+        #self.best_reach.update(self.no_data)
         message = {'message': self.message}
         self.best_reach.update(message)  
         print (self.message)
@@ -371,15 +380,16 @@ class HighResPoint:
             writer.writerow(self.best_reach)
 
     def write_reach_options(self, outfile_name='hydrolink_reach_output.csv'):
-        file_exists = os.path.isfile(outfile_name)
-        with open(outfile_name, 'a', newline='') as csv_file:
-            for r in self.reach_df.to_dict(orient='records'):
-                r.update({'init_id':self.id})
-                writer = csv.DictWriter(csv_file, r.keys(), delimiter=',')
-                if not file_exists:
-                    writer.writeheader()
-                    file_exists=True
-                writer.writerow(r)
+        if self.status ==1:
+            file_exists = os.path.isfile(outfile_name)
+            with open(outfile_name, 'a', newline='') as csv_file:
+                for r in self.reach_df.to_dict(orient='records'):
+                    r.update({'init_id':self.id})
+                    writer = csv.DictWriter(csv_file, r.keys(), delimiter=',')
+                    if not file_exists:
+                        writer.writeheader()
+                        file_exists=True
+                    writer.writerow(r)
 
 def build_meas_line(point1, point2, crs={'init':'epsg:4269'}):
     '''
