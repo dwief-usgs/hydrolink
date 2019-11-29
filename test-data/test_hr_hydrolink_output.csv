@@ -1,0 +1,5 @@
+input_id,input_stream,stream_clean_ref,GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE,snap_xy,snap_m,closest_node_m,closest,name_check,mult_reach_ct,name_check_txt,hr_meas
+1,nan,nan,,4.09642701,116934689,10190004000288,POINT (-105.1855392805047 39.73035887166384),51.283144582957085,1404.5227642665016,1,0.0,1,stream name and or gnis name not provided,81.45652
+2,clear ck,clear creek,Clear Creek,0.58603263,158720055,10190004000054,POINT (-105.517562307712 39.74057850525656),4.997077888483649,508.47454108432225,1,1.0,1,most likely match of stream names based on fuzzy match,65.76518
+3,Michigan,michigan,Michigan Creek,1.89909025,127813945,10190001000066,POINT (-105.8525594794693 39.38141760553879),39.2671227817922,nan,1,0.7272727272727273,1,likely match of stream names based on fuzzy match,63.20026
+11,nan,nan,,4.09642701,116934689,10190004000288,POINT (-105.189423413832 39.72943067166528),694.1076174532918,1869.3370029920886,1,0.0,1,stream name and or gnis name not provided,81.45652
