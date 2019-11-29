@@ -1,4 +1,4 @@
-Batch HydroLink
+HydroLink
 ===============================================================================================================
 
 -----------
@@ -6,28 +6,35 @@ Contact:
 -----------
 Daniel Wieferich (dwieferich@usgs.gov)
 
-
 -----------
 Purpose:
 -----------
-Linking observation and spatial feature data to the National Hydrography Dataset (NHD) provides context to the hydrographic network and provides access to additional hydrography information within the NHD for research and analitical purposes.
-This repository contains Python code that explores methods that link sampling and feature information to the NHDPlusV2 and NHDHR datasets using a batch approach and providing a level of certainty.  
+Hydrolinking refers to the linkage of observations and spatial feature data to a stream network.  This is similar to the analogy of addresses in a road network.  This effort will focus on hydrolinking of data to the National Hydrography Datasets (NHD), both the NHDPlusV2.1 Medium Resolution and NHD High Resolution.  
 
-  
+Hydrolinking data to the NHD provides context to the hydrographic network and makes it possible to access other known information across the stream network.
+
 -----------
-Additional Details:
------------
-This code performs a hydrolink batch process on a text file (.csv ) or shapefile (.shp) using user defined latitude and longitude fields. 
-The code returns the reachcode and measure of the closest position on the High Resolution National Hydrography Dataset, the Medium Resolution NHDPlusV2, or both versions of NHD using web services
-(no downloading of NHD data is necessary). The code also uses snap distance and stream name to help quantify a level of certainty. Levels of certainty currently 
-are a work in progress.  
-  
-To help standardize linked data processes, the code uses similar methods (based on available web services) to link information to the hydrography as the USGS HydroLink Tool ( https://maps.usgs.gov/hydrolink/ ).
+Requirements:
+-------------
+Uses web services
+
+*build requirements.txt and add it here
+GDAL
+Geopandas
+Pandas
+Shapely
+numpy
+requests
+csv
+re
+os
+difflib
   
 -----------
 Development Status:
 -------------------
 Software documented in this repository are unpublished and are under development.  Collaborative efforts to help improve code are encouraged.
+
 This software is preliminary or provisional and is subject to revision. It is being provided to meet the need for timely best science. 
 The software has not received final approval by the U.S. Geological Survey (USGS). No warranty, expressed or implied, is made by the USGS or the U.S. Government as to the functionality of the software and related material nor shall the fact of release constitute any such warranty. The software is provided on the condition that neither the USGS nor the U.S. Government shall be held liable for any damages resulting from the authorized or unauthorized use of the software. 
 
