@@ -5,8 +5,8 @@
 
 # Import 
 from . import nhd_hr
-#from . import nhdplusv2
-#from . import hydrolink
+from . import nhd_mr
+
 
 # provide version, PEP - three components ("major.minor.micro")
 #__version__ = pkg_resources.require("package_nm")[0].version

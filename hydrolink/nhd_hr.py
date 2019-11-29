@@ -59,9 +59,9 @@ class HighResPoint:
             self.reach_query = None
             self.reach_df = None
             self.best_reach = {
-                'init_id':feature_id, 
-                'init_stream':stream_name,
-                'stream_clean_ref': stream_name.lower(),
+                'input_id': input_identifier, 
+                'input_stream':str(stream_name),
+                'stream_clean_ref': str(stream_name).lower(),
                 'GNIS_NAME': None,
                 'LENGTHKM': None,
                 'PERMANENT_IDENTIFIER': None,
@@ -124,7 +124,7 @@ class HighResPoint:
         
         Parameters
         ------------
-        service = define web service to use for query, options "HEM", "TNM_HR", "TNM_HRPlus"
+        service = define web service to use for query, options "hem_flow","hem_waterbody", "TNM_HR", "TNM_HRPlus"
                   
         
         Note(s)
@@ -133,11 +133,17 @@ class HighResPoint:
         TNM_HR service splits flowlines into in-network and non-network and thus may require multiple service calls
         TNM_HRPlus service uses a snap-shot of NHD. This service also splits flowlines into in-network and non-network and thus may require multiple service calls
         '''
-        q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
-        if service == 'HEM':
+        
+        if service == 'hem_flow':
+            q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.reach_query = f"{base_url}{q}"
-            
+        
+        elif service == 'hem_waterbody': 
+            q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=PERMANENT_IDENTIFIER,GNIS_NAME,FTYPE&returnGeometry=false"
+            base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2/query?'
+            self.waterbody_query = f"{base_url}{q}"
+
         #TNM_HR and TNM_HRPlus were included for testing purposes and for potential future efforts
         #if service == 'TNM_HR':
         #    print ('currently these methods are not tuned for the TNM_HR service, it is recommended to use HEM')
@@ -282,42 +288,50 @@ class HighResPoint:
         if self.status==1:
             if self.reach_df is not None:
                 df = self.reach_df
-                name_check_1 = df.loc[df['name_check']==1]
+                if 'name_check' in df:
+                    name_check_1 = df.loc[df['name_check']==1]
 
-                if len(name_check_1.index)==1:
-                    vals = name_check_1.iloc[0].to_dict()
-                    vals.update({'mult_reach_ct': len(name_check_1)})
-                    self.best_reach.update(vals)
-                elif len(name_check_1.index)>1:
-                    closest = name_check_1.nsmallest(1,'snap_m', keep='all')
-                    #take first indexed reach in list of closest reaches
-                    #if multiple reaches have same hl_snap_meters and matching stream names the count will be recorded in "mult_reach_ct" field
-                    vals = closest.iloc[0].to_dict()
-                    vals.update({'mult_reach_ct':len(closest)})
-                    self.best_reach.update(vals)
-                elif len(name_check_1.index)==0:
-                    name_check_lt1 = df.loc[df['name_check']>=0.75]
-                    if len(name_check_lt1.index) == 1:
-                        vals = name_check_lt1.iloc[0].to_dict()
-                        vals.update({'mult_reach_ct':len(name_check_lt1)})
+                    if len(name_check_1.index)==1:
+                        vals = name_check_1.iloc[0].to_dict()
+                        vals.update({'mult_reach_ct': len(name_check_1)})
                         self.best_reach.update(vals)
-                    elif len(name_check_lt1.index)>1:
-                        closest = name_check_lt1.nsmallest(1,'snap_m', keep='all')
+                    elif len(name_check_1.index)>1:
+                        closest = name_check_1.nsmallest(1,'snap_m', keep='all')
+                        #take first indexed reach in list of closest reaches
+                        #if multiple reaches have same hl_snap_meters and matching stream names the count will be recorded in "mult_reach_ct" field
                         vals = closest.iloc[0].to_dict()
                         vals.update({'mult_reach_ct':len(closest)})
                         self.best_reach.update(vals)
-                    elif len(name_check_lt1.index)==0:
-                        closest = df.nsmallest(1,'snap_m', keep='all')
-                        vals = closest.iloc[0].to_dict()
-                        vals.update({'mult_reach_ct':len(closest)})
-                        self.best_reach.update(vals)
+                    elif len(name_check_1.index)==0:
+                        name_check_lt1 = df.loc[df['name_check']>=0.75]
+                        if len(name_check_lt1.index) == 1:
+                            vals = name_check_lt1.iloc[0].to_dict()
+                            vals.update({'mult_reach_ct':len(name_check_lt1)})
+                            self.best_reach.update(vals)
+                        elif len(name_check_lt1.index)>1:
+                            closest = name_check_lt1.nsmallest(1,'snap_m', keep='all')
+                            vals = closest.iloc[0].to_dict()
+                            vals.update({'mult_reach_ct':len(closest)})
+                            self.best_reach.update(vals)
+                        elif len(name_check_lt1.index)==0:
+                            closest = df.nsmallest(1,'snap_m', keep='all')
+                            vals = closest.iloc[0].to_dict()
+                            vals.update({'mult_reach_ct':len(closest)})
+                            self.best_reach.update(vals)
+                    else:
+                        self.message = f'unable to select best reach for id: {self.id}.'
+                        self.error_handling()
                 else:
-                    self.message = f'unable to select best reach for id: {self.id}.'
-                    self.error_handling()
+                    self.message = f'stream match function was not used for {self.id}, this will lower the probability of finding best reach match'
+                    print (self.message)
+                    closest = df.nsmallest(1,'snap_m', keep='all')
+                    vals = closest.iloc[0].to_dict()
+                    vals.update({'mult_reach_ct':len(closest), 'message':self.message})
+                    self.best_reach.update(vals)
+                        
             else:
                 self.message = f'no dataframe for: {self.id}. make sure functions are called in correct sequence'
                 self.error_handling()
-        self.best_reach.update({'message':self.message})
         
     def get_hl_measure(self):
         '''
@@ -370,7 +384,7 @@ class HighResPoint:
         self.best_reach.update(message)  
         print (self.message)
 
-    def write_best(self, outfile_name='hydrolink_output.csv'):
+    def write_best(self, outfile_name='hr_hydrolink_output.csv'):
         file_exists = os.path.isfile(outfile_name)
         with open(outfile_name, 'a', newline='') as csv_file:
             field_names = self.best_reach.keys()
@@ -379,12 +393,12 @@ class HighResPoint:
                 writer.writeheader()
             writer.writerow(self.best_reach)
 
-    def write_reach_options(self, outfile_name='hydrolink_reach_output.csv'):
+    def write_reach_options(self, outfile_name='hr_hydrolink_reach_output.csv'):
         if self.status ==1:
             file_exists = os.path.isfile(outfile_name)
             with open(outfile_name, 'a', newline='') as csv_file:
                 for r in self.reach_df.to_dict(orient='records'):
-                    r.update({'init_id':self.id})
+                    r.update({'input_id':self.id})
                     writer = csv.DictWriter(csv_file, r.keys(), delimiter=',')
                     if not file_exists:
                         writer.writeheader()
@@ -425,6 +439,30 @@ def clean_stream_name(name):
     stream_lower = stream_lower.replace(' br. ', ' branch')
     stream_name = stream_lower.strip()
     return stream_name  
+
+def get_ftype(fcode):
+    '''
+    Description:  Lookup NHD feature type based on fcode
+    '''
+
+    #create dictionary with fcode:ftype pairs
+    ftypes = {
+        '436': 'Reservoir',
+        '390': 'LakePond',
+        '493': 'Estuary',
+        '466': 'SwampMarsh',
+        '361': 'Playa',
+        '378': 'Ice Mass',
+        '566': 'Coastline',
+        '334': 'Connector',
+        '336': 'CanalDitch',
+        '558': 'ArtificialPath',
+        '428': 'Pipeline',
+        '460': 'StreamRiver',
+        '420': 'Underground Conduit'
+        }
+    ftype = ftypes[str(fcode)]
+    return ftype
 
 ############################################################################################
 ############################################################################################

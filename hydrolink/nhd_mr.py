@@ -59,9 +59,9 @@ class MedResPoint:
             self.reach_query = None
             self.reach_df = None
             self.best_reach = {
-                'init_id':input_identifier, 
-                'init_stream':stream_name,
-                'stream_clean_ref': stream_name.lower(),
+                'input_id':input_identifier, 
+                'input_stream':str(stream_name),
+                'stream_clean_ref': str(stream_name).lower(),
                 'GNIS_NAME': None,
                 'LENGTHKM': None,
                 'PERMANENT_IDENTIFIER': None,
@@ -253,42 +253,50 @@ class MedResPoint:
         if self.status==1:
             if self.reach_df is not None:
                 df = self.reach_df
-                name_check_1 = df.loc[df['name_check']==1]
+                if 'name_check' in df:
+                    name_check_1 = df.loc[df['name_check']==1]
 
-                if len(name_check_1.index)==1:
-                    vals = name_check_1.iloc[0].to_dict()
-                    vals.update({'mult_reach_ct': len(name_check_1)})
-                    self.best_reach.update(vals)
-                elif len(name_check_1.index)>1:
-                    closest = name_check_1.nsmallest(1,'snap_m', keep='all')
-                    #take first indexed reach in list of closest reaches
-                    #if multiple reaches have same hl_snap_meters and matching stream names the count will be recorded in "mult_reach_ct" field
-                    vals = closest.iloc[0].to_dict()
-                    vals.update({'mult_reach_ct':len(closest)})
-                    self.best_reach.update(vals)
-                elif len(name_check_1.index)==0:
-                    name_check_lt1 = df.loc[df['name_check']>=0.75]
-                    if len(name_check_lt1.index) == 1:
-                        vals = name_check_lt1.iloc[0].to_dict()
-                        vals.update({'mult_reach_ct':len(name_check_lt1)})
+                    if len(name_check_1.index)==1:
+                        vals = name_check_1.iloc[0].to_dict()
+                        vals.update({'mult_reach_ct': len(name_check_1)})
                         self.best_reach.update(vals)
-                    elif len(name_check_lt1.index)>1:
-                        closest = name_check_lt1.nsmallest(1,'snap_m', keep='all')
+                    elif len(name_check_1.index)>1:
+                        closest = name_check_1.nsmallest(1,'snap_m', keep='all')
+                        #take first indexed reach in list of closest reaches
+                        #if multiple reaches have same hl_snap_meters and matching stream names the count will be recorded in "mult_reach_ct" field
                         vals = closest.iloc[0].to_dict()
                         vals.update({'mult_reach_ct':len(closest)})
                         self.best_reach.update(vals)
-                    elif len(name_check_lt1.index)==0:
-                        closest = df.nsmallest(1,'snap_m', keep='all')
-                        vals = closest.iloc[0].to_dict()
-                        vals.update({'mult_reach_ct':len(closest)})
-                        self.best_reach.update(vals)
+                    elif len(name_check_1.index)==0:
+                        name_check_lt1 = df.loc[df['name_check']>=0.75]
+                        if len(name_check_lt1.index) == 1:
+                            vals = name_check_lt1.iloc[0].to_dict()
+                            vals.update({'mult_reach_ct':len(name_check_lt1)})
+                            self.best_reach.update(vals)
+                        elif len(name_check_lt1.index)>1:
+                            closest = name_check_lt1.nsmallest(1,'snap_m', keep='all')
+                            vals = closest.iloc[0].to_dict()
+                            vals.update({'mult_reach_ct':len(closest)})
+                            self.best_reach.update(vals)
+                        elif len(name_check_lt1.index)==0:
+                            closest = df.nsmallest(1,'snap_m', keep='all')
+                            vals = closest.iloc[0].to_dict()
+                            vals.update({'mult_reach_ct':len(closest)})
+                            self.best_reach.update(vals)
+                    else:
+                        self.message = f'unable to select best reach for id: {self.id}.'
+                        self.error_handling()
                 else:
-                    self.message = f'unable to select best reach for id: {self.id}.'
-                    self.error_handling()
+                    self.message = f'stream match function was not used for {self.id}, this will lower the probability of finding best reach match'
+                    print (self.message)
+                    closest = df.nsmallest(1,'snap_m', keep='all')
+                    vals = closest.iloc[0].to_dict()
+                    vals.update({'mult_reach_ct':len(closest), 'message':self.message})
+                    self.best_reach.update(vals)
+                        
             else:
                 self.message = f'no dataframe for: {self.id}. make sure functions are called in correct sequence'
                 self.error_handling()
-        self.best_reach.update({'message':self.message})
         
     def get_hl_measure(self):
         '''
@@ -355,7 +363,7 @@ class MedResPoint:
             file_exists = os.path.isfile(outfile_name)
             with open(outfile_name, 'a', newline='') as csv_file:
                 for r in self.reach_df.to_dict(orient='records'):
-                    r.update({'init_id':self.id})
+                    r.update({'input_id':self.id})
                     writer = csv.DictWriter(csv_file, r.keys(), delimiter=',')
                     if not file_exists:
                         writer.writeheader()
