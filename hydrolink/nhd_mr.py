@@ -22,7 +22,7 @@ Module that allows for hydrolinking of data to the National Hydrography Dataset 
 Classes and methods are designed to handle one feature at a time.
 '''
 class MedResPoint:
-    def __init__(self, input_identifier, input_lat, input_lon, input_crs=4269, stream_name=None, buffer_m=1000):
+    def __init__(self, input_identifier, input_lat, input_lon, input_crs=4269, water_name=None, buffer_m=1000):
         '''
         Description
         ------------
@@ -34,13 +34,13 @@ class MedResPoint:
         input_lat: float, latitude of the point to be hydrolinked
         input_lon: float, longitude of the point to be hydrolinked
         input_crs: int, coordinate reference system, default is 4269 which is NAD83
-        stream_name: str, user supplied name of the stream a point is intended to be linked, optional
+        water_name: str, user supplied name of the waterbody a point is intended to be linked, optional
         buffer_m: distance in meters to search around a point, for identifying reaches of interest, max is 2000
 
         Notes
         ------------
         x,y coordinate in NAD83 (CRS 4269) or WGS84 (CRS 4326) are recommended
-        stream_name works best without abbreviations
+        water_name works best without abbreviations
         larger buffers will take much longer to run, recommended to use the smallest buffer possible 
         '''
         if buffer_m > 2000:
@@ -52,7 +52,7 @@ class MedResPoint:
             self.init_lat = float(input_lat)
             self.init_lon = float(input_lon)
             self.init_crs = int(input_crs)
-            self.stream_name = str(stream_name)
+            self.water_name = str(water_name)
             self.buffer_m = int(buffer_m)
             self.status = 1  # where 0 is failed, 1 is worked
             self.message = ''
@@ -60,8 +60,8 @@ class MedResPoint:
             self.reach_df = None
             self.best_reach = {
                 'input_id':input_identifier, 
-                'input_stream':str(stream_name),
-                'stream_clean_ref': str(stream_name).lower(),
+                'water_name':str(water_name),
+                'water_name_ref': str(water_name).lower(),
                 'GNIS_NAME': None,
                 'LENGTHKM': None,
                 'PERMANENT_IDENTIFIER': None,
@@ -74,7 +74,8 @@ class MedResPoint:
                 'name_check': None,
                 'mult_reach_ct': None,
                 'name_check_txt': None,
-                'mr_meas': None
+                'mr_meas': None,
+                'message':''
                 }
         
     def crs_to_4269(self):
@@ -112,7 +113,7 @@ class MedResPoint:
                 self.message = f'Issues handling provided coordinate system for {self.id}. Consider using a common crs like 4269 (NAD83) or 4326 (WGS84).'
                 self.error_handling()
         
-    def build_reach_query(self, service='network_flow'):
+    def build_nhd_query(self, service='network_flow'):
         '''
         Description
         ------------
@@ -194,45 +195,46 @@ class MedResPoint:
                 self.message = f'find best reach failed for id: {self.id}. possibly service call issue'
                 self.error_handling()
     
-    def stream_match(self):
+    def water_name_match(self):
         '''
-        Description: determine if user supplied stream name matches gnis stream name in nhd
+        Description: determine if user supplied water name matches nhd supplied gnis name
         Note: It would be ideal to use np.where or alike to assign name_check values to all of the rows 
         at one time but the fuzzy match was not working so current work around using itertuples.  Also
-        should be able to delete name_check_text.
+        should be able to delete name_check_text but some users may find this helpful?
         '''
         if self.status==1:  #if status = 0 we don't want to waste time processing
-            if self.reach_df is not None and self.stream_name is not None:
+            if self.reach_df is not None and self.water_name is not None:
                 df = self.reach_df
                 #If GNIS is not null and names match assign a 1
-                df['name_check'] = np.where((df.GNIS_NAME.notnull()) & (df.GNIS_NAME.str.lower()==self.stream_name.lower()), 1.0, 0)
+                df['name_check'] = np.where((df.GNIS_NAME.notnull()) & (df.GNIS_NAME.str.lower()==self.water_name.lower()), 1.0, 0)
                 for row in df.itertuples():
                     #pid = (row.PERMANENT_IDENTIFIER)
                     if row.name_check == 1:
-                        df.at[row.Index, 'name_check_txt'] = 'exact match of stream names'
-                        self.best_reach.update({'stream_clean_ref':self.stream_name.lower()})
+                        df.at[row.Index, 'name_check_txt'] = 'exact name match'
+                        self.best_reach.update({'water_name_ref':self.water_name.lower()})
 
-                    elif row.GNIS_NAME and self.stream_name is not None:
+                    elif row.GNIS_NAME and self.water_name is not None:
                         gnis= (row.GNIS_NAME).lower()
-                        #stream_lc = (item.stream_name).lower()
-                        stream_lc = clean_stream_name(self.stream_name)
-                        self.best_reach.update({'stream_clean_ref':stream_lc})
-                        if 'tributary' not in stream_lc and 'branch' not in stream_lc:
-                            match_ratio = difflib.SequenceMatcher(lambda x: x == " ", gnis, stream_lc).ratio()
+                        #cleaned_water_name = (item.water_name).lower()
+                        cleaned_water_name = clean_water_name(self.water_name)
+                        self.best_reach.update({'water_name_ref':cleaned_water_name})
+                        if 'tributary' not in cleaned_water_name and 'branch' not in cleaned_water_name:
+                            match_ratio = difflib.SequenceMatcher(lambda x: x == " ", gnis, cleaned_water_name).ratio()
                             df.at[row.Index, 'name_check'] = match_ratio
                             # If match ratio is greater than 0.75, update df field 'name_check_txt'
                             if match_ratio >= 0.75:
-                                df.at[row.Index, 'name_check_txt'] = 'most likely match of stream names based on fuzzy match'
+                                df.at[row.Index, 'name_check_txt'] = 'most likely name match based on fuzzy match'
                             # If match ratio is greater than 0.6 and less than 0.6, update df field 'name_check_txt'
                             elif 0.75 > match_ratio >= 0.6:
-                                df.at[row.Index, 'name_check_txt'] = 'likely match of stream names based on fuzzy match'                
+                                df.at[row.Index, 'name_check_txt'] = 'likely name match based on fuzzy match'                
                         else:
-                            df.at[row.Index, 'name_check_txt'] = 'no stream matching occured due to name containing reference to tributary' 
+                            df.at[row.Index, 'name_check_txt'] = 'no name match, water name containing reference to tributary'
+                            df.at[row.Index, 'name_check'] = 0 
                     else:
-                        df.at[row.Index, 'name_check_txt'] = 'stream name and or gnis name not provided'
+                        df.at[row.Index, 'name_check_txt'] = 'no name match, water name and or gnis name not provided'
                         df.at[row.Index, 'name_check'] = 0
             else:
-                df['name_check_txt'] = 'no stream name provided'
+                df['name_check_txt'] = 'no name match, water name not provided'
                 df['name_check'] = 0
         
     def select_best_reach(self):
@@ -261,9 +263,8 @@ class MedResPoint:
                         vals.update({'mult_reach_ct': len(name_check_1)})
                         self.best_reach.update(vals)
                     elif len(name_check_1.index)>1:
-                        closest = name_check_1.nsmallest(1,'snap_m', keep='all')
-                        #take first indexed reach in list of closest reaches
-                        #if multiple reaches have same hl_snap_meters and matching stream names the count will be recorded in "mult_reach_ct" field
+                        closest = name_check_1.nsmallest(1,'snap_m', keep='all') #take first indexed reach in list of closest reaches
+                        #if multiple reaches have same hl_snap_meters and matching names the count will be recorded in "mult_reach_ct" field
                         vals = closest.iloc[0].to_dict()
                         vals.update({'mult_reach_ct':len(closest)})
                         self.best_reach.update(vals)
@@ -287,7 +288,7 @@ class MedResPoint:
                         self.message = f'unable to select best reach for id: {self.id}.'
                         self.error_handling()
                 else:
-                    self.message = f'stream match function was not used for {self.id}, this will lower the probability of finding best reach match'
+                    self.message = f'water match function was not used for {self.id}, using this function will lower the probability of finding best reach match'
                     print (self.message)
                     closest = df.nsmallest(1,'snap_m', keep='all')
                     vals = closest.iloc[0].to_dict()
@@ -381,29 +382,30 @@ def build_meas_line(point1, point2, crs={'init':'epsg:4269'}):
     line_length_meters = line_geoseries.length[0]
     return line_length_meters
 
-def clean_stream_name(name):
+def clean_water_name(name):
     '''
     Description: replace common abbreviations, this needs improvement but be careful not to replace 
     strings we dont want to this code currently assumes GNIS_NAME never contains abbreviations... 
     something to verify. If you have a better way to do this let me know!!!!
     '''
-    stream = name
-    stream_lower = f'{stream.lower()} '
-    stream_lower = re.sub("[\(\[].*?[\)\]]", "", stream_lower)
-    stream_lower = stream_lower.replace(' st. ', ' stream')
-    stream_lower = stream_lower.replace(' st ', ' stream')
-    stream_lower = stream_lower.replace(' rv. ', ' river')
-    stream_lower = stream_lower.replace(' rv ', ' river')
-    stream_lower = stream_lower.replace('unt ', 'unnamed tributary ')
-    stream_lower = stream_lower.replace(' trib. ', ' tributary')
-    stream_lower = stream_lower.replace(' trib) ', ' tributary')
-    stream_lower = stream_lower.replace(' trib ', ' tributary')
-    stream_lower = stream_lower.replace(' ck ', ' creek')
-    stream_lower = stream_lower.replace(' ck. ', ' creek')
-    stream_lower = stream_lower.replace(' br ', ' branch')
-    stream_lower = stream_lower.replace(' br. ', ' branch')
-    stream_name = stream_lower.strip()
-    return stream_name  
+    
+    name_lower = f' {name.lower()} '
+    name_lower = re.sub("[\(\[].*?[\)\]]", "", name_lower)
+    name_lower = name_lower.replace(' st. ', ' stream')
+    name_lower = name_lower.replace(' st ', ' stream')
+    name_lower = name_lower.replace(' str ', ' stream')
+    name_lower = name_lower.replace(' rv. ', ' river')
+    name_lower = name_lower.replace(' rv ', ' river')
+    name_lower = name_lower.replace('unt ', 'unnamed tributary ')
+    name_lower = name_lower.replace(' trib. ', ' tributary')
+    name_lower = name_lower.replace(' trib) ', ' tributary')
+    name_lower = name_lower.replace(' trib ', ' tributary')
+    name_lower = name_lower.replace(' ck ', ' creek')
+    name_lower = name_lower.replace(' ck. ', ' creek')
+    name_lower = name_lower.replace(' br ', ' branch')
+    name_lower = name_lower.replace(' br. ', ' branch')
+    water_name_cleaned = name_lower.strip()
+    return water_name_cleaned  
 
 ############################################################################################
 ############################################################################################
