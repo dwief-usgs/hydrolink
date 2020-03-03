@@ -73,7 +73,6 @@ if __name__ == '__main__':
     input_data, crs = get_user_input()
 
     df = import_file(input_data, crs)
-    print (df.columns)
 
     for row in df.itertuples():
         
@@ -84,7 +83,7 @@ if __name__ == '__main__':
         hydrolink.build_nhd_query(service='hem_flow')
 
         #executes query and measures distances from point to each line and their nodes
-        hydrolink.info_on_closest_reaches(n=3)
+        hydrolink.get_closest_reaches(n=3)
 
         #stream name match for each of the reaches
         hydrolink.water_name_match()

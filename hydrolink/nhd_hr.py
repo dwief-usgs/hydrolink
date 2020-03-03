@@ -80,7 +80,7 @@ class HighResPoint:
         if buffer_m > 2000:
             self.message = ('Maximum buffer is 2000 meters, reduce buffer to less than 2000 meters.')
             self.error_handling()
-            
+
         #If buffer is less than or equal to 2000 then run 
         else:
             #Try converting to NAD83 (crs==4269) coordinate system if different coordinate system provided
@@ -177,7 +177,7 @@ class HighResPoint:
                self.message = f'is_in_waterbody failed for: {self.id}. possibly service call issue'
                self.error_handling()
         
-    def info_on_closest_reaches(self, n=6):
+    def get_closest_reaches(self, n=6):
         '''
         Description
         ------------
