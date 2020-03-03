@@ -18,7 +18,7 @@ HydroLink
 
 Python package with methods to hydrolink (address) information to National Hydrography Datasets using web services.
 
-* Free software: CC0 1.0
+* Free software: unlicense
 * Documentation: https://hydrolink.readthedocs.io.
 
 
@@ -35,12 +35,9 @@ Hydrolinking refers to the linkage of spatial data to a stream network.  This is
 Copyright and License
 --------
 This USGS product is considered to be in the U.S. public domain, and is licensed under
-[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+[unlicense](https://unlicense.org/).
 
-Although this software program has been used by the U.S. Geological Survey (USGS), no warranty, expressed or implied,
-is made by the USGS or the U.S. Government as to the accuracy and functioning of the program and related program
-material nor shall the fact of distribution constitute any such warranty, and no responsibility is assumed by the
-USGS in connection therewith.
+This software is preliminary or provisional and is subject to revision. It is being provided to meet the need for timely best science. The software has not received final approval by the U.S. Geological Survey (USGS). No warranty, expressed or implied, is made by the USGS or the U.S. Government as to the functionality of the software and related material nor shall the fact of release constitute any such warranty. The software is provided on the condition that neither the USGS nor the U.S. Government shall be held liable for any damages resulting from the authorized or unauthorized use of the software.
 
 
 Credits

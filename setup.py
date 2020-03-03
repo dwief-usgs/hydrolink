@@ -23,7 +23,7 @@ setup(
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
+        'License :: unlicense',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
@@ -33,7 +33,7 @@ setup(
     ],
     description="Python package with methods to address information to National Hydrography Datasets",
     install_requires=requirements,
-    license="CC0 1.0",
+    license="unlicense",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
     keywords='hydrolink',
@@ -43,6 +43,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/dwief-usgs/hydrolink',
-    version='0.0.2',
+    version='0.0.3',
     zip_safe=False,
 )
