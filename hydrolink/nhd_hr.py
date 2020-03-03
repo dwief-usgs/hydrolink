@@ -8,7 +8,7 @@ from shapely.geometry import Point, LineString
 import csv
 import re
 import os.path
-
+from hydrolink import utils
 ############################################################################################
 ############################################################################################
 '''
@@ -22,11 +22,13 @@ Module that allows for hydrolinking of data to the High Resolution National Hydr
 Classes and methods are designed to handle one feature at a time.
 '''
 class HighResPoint:
-    def __init__(self, input_identifier, input_lat, input_lon, input_crs=4269, water_name=None, buffer_m=1000):
+    def __init__(self, input_identifier, input_lat, input_lon, input_crs=4269, waterbody_type='unknown', water_name=None, buffer_m=1000):
         '''
         Description
         ------------
-        Initiates attributes for linking a point to the NHD High Resolution
+        Initiates attributes for linking a point to the NHD High Resolution.  First ensure that the buffer
+        is less than 2000 meters.  If it is then try converting crs to NAD83.  Then make sure point is within
+        United States bounding box.  If any of these fail, create error message and do not run hydrolink.
         
         Parameters
         ------------
@@ -34,85 +36,73 @@ class HighResPoint:
         input_lat: float, latitude of the point to be hydrolinked
         input_lon: float, longitude of the point to be hydrolinked
         input_crs: int, coordinate reference system, default is 4269 which is NAD83
+        waterbody_type: str, choices include 'stream' aka flowlines, 'waterbody' aka polygons, 'unknown' 
         water_name: str, user supplied name of the waterbody a point is intended to be linked, optional
         buffer_m: distance in meters to search around a point, for identifying reaches of interest, max is 2000
 
         Notes
         ------------
-        x,y coordinate in NAD83 (CRS 4269) or WGS84 (CRS 4326) are recommended
+        x,y coordinate in NAD83 (CRS 4269), WGS84 (CRS 4326), (CRS 5070) are tested and recommended
         water_name works best without abbreviations
         larger buffers will take much longer to run, recommended to use the smallest buffer possible 
         '''
-        if buffer_m > 2000:
-            print ('Maximum buffer is 2000 meters. To run efficiently it is recommended to use the smallest buffer possible.')
-            self.message('Buffer is to large, reduce buffer to less than 2000 meters.')
-            self.status = 0
-        else:
-            self.id = str(input_identifier)
-            self.init_lat = float(input_lat)
-            self.init_lon = float(input_lon)
-            self.init_crs = int(input_crs)
-            self.water_name = str(water_name)
-            self.buffer_m = int(buffer_m)
-            self.status = 1  # where 0 is failed, 1 is worked
-            self.wb=False   # is point assoicated with waterbody
-            self.message = ''
-            self.reach_query = None
-            self.reach_df = None
-            self.best_reach = {
-                'input_id': input_identifier, 
-                'input_water':str(water_name),
-                'water_name_ref': str(water_name).lower(),
-                'GNIS_NAME': None,
-                'LENGTHKM': None,
-                'PERMANENT_IDENTIFIER': None,
-                'wb_id': None,
-                'wb_gnis_name': None,
-                'REACHCODE': None,
-                'snap_xy': None,
-                'snap_m': None,
-                'closest_node_m': None,
-                'closest': None,
-                'name_check': None,
-                'mult_reach_ct': None,
-                'name_check_txt': None,
-                'hr_meas': None,
-                'message': ''
-                }
         
-    def crs_to_4269(self):
-        '''
-        Description
-        ------------
-        Converts coordinate reference system to NAD83 aka crs 4269, and verifies coordinates are within United States.
-        Simple way of handling multiple crs, and providing user feedback before running service calls.
-        '''
-        if self.init_crs == 4269:
-            pass
+        self.id = str(input_identifier)
+        self.water_name = str(water_name)
+        self.buffer_m = int(buffer_m)
+        self.status = 1  # where 0 is failed, 1 is worked properly
+        self.wb= False   # is point assoicated with waterbody
+        self.message = ''
+        self.reach_query = None
+        self.reach_df = None
+        self.best_reach = {
+            'input_id': input_identifier, 
+            'input_water':str(water_name),
+            'water_name_ref': str(water_name).lower(),
+            'GNIS_NAME': None,
+            'LENGTHKM': None,
+            'PERMANENT_IDENTIFIER': None,
+            'wb_id': None,
+            'wb_gnis_name': None,
+            'REACHCODE': None,
+            'snap_xy': None,
+            'snap_m': None,
+            'closest_node_m': None,
+            'closest': None,
+            'name_check': None,
+            'mult_reach_ct': None,
+            'name_check_txt': None,
+            'hr_meas': None,
+            'message': ''
+            }
+        
+        #If buffer is greater than 2000 do not run and set error message
+        if buffer_m > 2000:
+            self.message = ('Maximum buffer is 2000 meters, reduce buffer to less than 2000 meters.')
+            self.error_handling()
+            
+        #If buffer is less than or equal to 2000 then run 
         else:
+            #Try converting to NAD83 (crs==4269) coordinate system if different coordinate system provided
+            #If fails do not run and set error message
             try:
-                #build shapely point from coordinates
-                init_point = Point(self.init_lon, self.init_lat)
-                #create geoseries of shapely point  
-                pt_gdf = gpd.GeoSeries(init_point)
-                #set crs of geoseries, using user provided crs
-                epsg = f'epsg:{str(self.init_crs)}'
-                crs={'init':epsg}
-                pt_gdf.crs = crs
-                #reporject point
-                pt_gdf.to_crs({'init':'epsg:4269'})
-                #overwrite initial point data with crs 4269 representation
-                self.init_lon = pt_gdf[0].x
-                self.init_lat = pt_gdf[0].y
-                self.init_crs = 4269
-
+                if int(input_crs) == 4269:
+                    self.init_lon = float(input_lon)
+                    self.init_lat = float(input_lat)
+                else:
+                    self.init_lon, self.init_lat = utils.crs_to_nad83(float(input_lon), float(input_lat), input_crs)
+                
+                
                 #Test to make sure coordinates are within U.S. including Puerto Rico and Virgian Islands.  
                 #This is based on a general bounding box and intended to pick up common issues like missing values, 0 values and positive lon values
-                if self.init_lat and (float(self.init_lat) > 17.5 and float(self.init_lat) < 71.5) and self.init_lon and (float(self.init_lon) < -64.0 and float(self.init_lon)> -178.5):
+                if (float(self.init_lat) > 17.5 and float(self.init_lat) < 71.5) and (float(self.init_lon) < -64.0 and float(self.init_lon)> -178.5):
+                    pass
+                else:
                     self.message = f'Coordinates for id: {self.id} are outside of the bounding box of the United States.'
                     self.error_handling()
+            
             except:
-                self.message = f'Issues handling provided coordinate system for {self.id}. Consider using a common crs like 4269 (NAD83) or 4326 (WGS84).'
+                self.message = f'Issues handling provided coordinate system or coordinates for {self.id}. Consider using a common crs like 4269 (NAD83) or 4326 (WGS84).'
                 self.error_handling()
         
     def build_nhd_query(self, service=['hem_flow','hem_waterbody']):
@@ -138,13 +128,13 @@ class HighResPoint:
         '''
         
         if 'hem_flow' in service:
-            q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
+            q = f"geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.reach_query = f"{base_url}{q}"
         
         #hem waterbody returns information about hem waterbodies that the point is within
         if 'hem_waterbody' in service:
-            q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=PERMANENT_IDENTIFIER,GNIS_NAME,FTYPE&returnGeometry=False"
+            q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR=4269&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=PERMANENT_IDENTIFIER,GNIS_NAME,FTYPE&returnGeometry=False"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2/query?'
             self.waterbody_query = f"{base_url}{q}"
 
@@ -187,7 +177,7 @@ class HighResPoint:
                self.message = f'is_in_waterbody failed for: {self.id}. possibly service call issue'
                self.error_handling()
         
-    def find_closest_reaches(self, n=6):
+    def info_on_closest_reaches(self, n=6):
         '''
         Description
         ------------
@@ -217,7 +207,7 @@ class HighResPoint:
                         snap_meas = line_geo.project(init_point)
                         snap_xy = line_geo.interpolate(snap_meas) #for reach find x,y on line closest to input x,y
                         snap_point = Point(snap_xy.x, snap_xy.y)
-                        snap_m = build_meas_line(snap_point, init_point, crs={'init':'epsg:4269'})
+                        snap_m = utils.build_meas_line(snap_point, init_point, crs={'init':'epsg:4269'})
                         
                         # build lines to terminal nodes of reach and measure them
                         meters_to_up_node = None
@@ -226,10 +216,10 @@ class HighResPoint:
                         for node in line['geometry']['paths'][0]:
                             if node[2]==100:    #upstream confluence or upstream most point on network     
                                 max_coord = Point(node[0], node[1])
-                                meters_to_up_node = build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
+                                meters_to_up_node = utils.build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
                             elif node[2]==0:
                                 min_coord = Point(node[0], node[1])
-                                meters_to_dwn_node = build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstream end
+                                meters_to_dwn_node = utils.build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstream end
                         if meters_to_dwn_node or meters_to_up_node:   #if one is not none
                             closest_node_m = min(list(filter(None, [meters_to_dwn_node, meters_to_up_node])))
 
@@ -240,10 +230,10 @@ class HighResPoint:
                         #     min_meas = min(meas_range)
                         #     if node[2]==max_meas:
                         #         max_coord = Point(node[0], node[1])
-                        #         meters_to_up_node = build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
+                        #         meters_to_up_node = utils.build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
                         #     elif node[2]==min_meas:
                         #         min_coord = Point(node[0], node[1])
-                        #         meters_to_dwn_node = build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstreaem end
+                        #         meters_to_dwn_node = utils.build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstreaem end
                         
                         #closest_node_m = min(meters_to_dwn_node, meters_to_up_node)  #meters to closest node/confluence of the reach (upstream or downstream)
                         
@@ -286,7 +276,7 @@ class HighResPoint:
                     elif row.GNIS_NAME and self.water_name is not None:
                         gnis= (row.GNIS_NAME).lower()
                         #cleaned_water_name = (item.water_name).lower()
-                        cleaned_water_name = clean_water_name(self.water_name)
+                        cleaned_water_name = utils.clean_water_name(self.water_name)
                         self.best_reach.update({'water_name_ref':cleaned_water_name})
                         if 'tributary' not in cleaned_water_name and 'branch' not in cleaned_water_name:
                             match_ratio = difflib.SequenceMatcher(lambda x: x == " ", gnis, cleaned_water_name).ratio()
@@ -439,42 +429,7 @@ class HighResPoint:
                     if not file_exists:
                         writer.writeheader()
                         file_exists=True
-                    writer.writerow(r)
-
-def build_meas_line(point1, point2, crs={'init':'epsg:4269'}):
-    '''
-    Description: where point1 and 2 are shapely points
-    '''
-    line_geom = LineString([point1, point2]) 
-    line_geoseries = gpd.GeoSeries(line_geom)           
-    line_geoseries.crs = crs
-    line_geoseries=line_geoseries.to_crs({'init':'epsg:5070'})
-    line_length_meters = line_geoseries.length[0]
-    return line_length_meters
-
-def clean_water_name(name):
-    '''
-    Description: replace common abbreviations, this needs improvement but be careful not to replace 
-    strings we dont want to this code currently assumes GNIS_NAME never contains abbreviations... 
-    something to verify. If you have a better way to do this let me know!!!!
-    '''
-    name_lower = f' {name.lower()} '
-    name_lower = re.sub("[\(\[].*?[\)\]]", "", name_lower)
-    name_lower = name_lower.replace(' st. ', ' stream')
-    name_lower = name_lower.replace(' st ', ' stream')
-    name_lower = name_lower.replace(' str ', ' stream')
-    name_lower = name_lower.replace(' rv. ', ' river')
-    name_lower = name_lower.replace(' rv ', ' river')
-    name_lower = name_lower.replace(' unt ', 'unnamed tributary ')
-    name_lower = name_lower.replace(' trib. ', ' tributary')
-    name_lower = name_lower.replace(' trib) ', ' tributary')
-    name_lower = name_lower.replace(' trib ', ' tributary')
-    name_lower = name_lower.replace(' ck ', ' creek')
-    name_lower = name_lower.replace(' ck. ', ' creek')
-    name_lower = name_lower.replace(' br ', ' branch')
-    name_lower = name_lower.replace(' br. ', ' branch')
-    water_name_cleaned = name_lower.strip()
-    return water_name_cleaned   
+                    writer.writerow(r) 
 
 def get_ftype(fcode):
     '''
