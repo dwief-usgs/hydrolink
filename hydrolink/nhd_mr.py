@@ -125,10 +125,10 @@ class MedResPoint:
         '''
         q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE,COMID,TERMINALFLAG&returnM=True"
         if service == 'network_flow':
-            base_url = 'https://inlandwaters.geoplatform.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2/query?'
+            base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2/query?'
             self.reach_query = f"{base_url}{q}"
         elif service == 'nonnetwork_flow':
-            base_url = 'https://inlandwaters.geoplatform.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/3/query?'
+            base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/3/query?'
             self.reach_query = f"{base_url}{q}"        
 
             
@@ -345,7 +345,6 @@ class MedResPoint:
         when error is captured, document and send message to user
         '''
         self.status = 0
-        self.best_reach.update(self.no_data)
         message = {'message': self.message}
         self.best_reach.update(message)  
         print (self.message)
