@@ -1,0 +1,4 @@
+# This file may be used to create an environment using:
+requests
+geopandas
+difflib
