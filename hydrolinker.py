@@ -6,7 +6,7 @@ import click
 
 
 @click.command()
-@click.option('--input_file', required=True, show_default=True,  default='test-data/test.csv', help='Enter file name, including extension (only accepts .csv and .shp)')
+@click.option('--input_file', required=True, show_default=True,  default='test/test-data.csv', help='Enter file name, including extension (only accepts .csv and .shp)')
 @click.option('--latitude_field', required=True, show_default=True, default='y', help='Enter field name for latitude, note this is case sensitive')
 @click.option('--longitude_field', required=True, show_default=True, default='x', help='Enter field name for longitude, note this is case sensitive')
 @click.option('--stream_name_field', required=True, show_default=True, default='stream', help='Enter field name for stream name, if none type None, note this is case sensitive')
