@@ -6,22 +6,27 @@ import click
 
 
 @click.command()
-@click.option('--input_file', required=True,  default='test-data/test.csv', help='Enter file name, including extension (only accepts .csv and .shp)')
-@click.option('--latitude_field', required=True, default='y', help='Enter field name for latitude, note this is case sensitive')
-@click.option('--longitude_field', required=True, default='x', help='Enter field name for longitude, note this is case sensitive')
-@click.option('--stream_name_field', required=True, default='stream', help='Enter field name for stream name, if none type None, note this is case sensitive')
-@click.option('--identifier_field', required=True, default='id', help='Enter field name for identifier, note this is case sensitive')
-@click.option('--crs', required=True, default=4269, help='Enter crs number, recommended to use NAD83 represented by 4269')
+@click.option('--input_file', required=True, show_default=True,  default='test-data/test.csv', help='Enter file name, including extension (only accepts .csv and .shp)')
+@click.option('--latitude_field', required=True, show_default=True, default='y', help='Enter field name for latitude, note this is case sensitive')
+@click.option('--longitude_field', required=True, show_default=True, default='x', help='Enter field name for longitude, note this is case sensitive')
+@click.option('--stream_name_field', required=True, show_default=True, default='stream', help='Enter field name for stream name, if none type None, note this is case sensitive')
+@click.option('--identifier_field', required=True, show_default=True, default='id', help='Enter field name for identifier, note this is case sensitive')
+@click.option('--crs', required=True, show_default=True, default=4269, help='Enter crs number, recommended to use NAD83 represented by 4269')
 def handle_data(input_file, latitude_field, longitude_field, stream_name_field, identifier_field, crs):
     """
+    description
+    ----------
     a program to hydrolink point data to the nhd high resolution. 
     
-    examples:
+    examples
+    ----------
     
     python hydrolinker.py -> runs with defaults
+
     python hydrolinker.py --input_file=file_name.csv  -> runs with specified file name and default other values
 
-    output: 
+    output
+    ---------- 
     writes hydrolinked (hydro addressed information to csv file)
     """
 
