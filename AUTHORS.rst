@@ -10,4 +10,6 @@ Development Lead
 Contributors
 ------------
 
-None yet. Why not be the first?
+* Brandon Serna <bserna@usgs.gov>
+
+Contributions of issues and/or pull requests are encouraged and appreciated.
