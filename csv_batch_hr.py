@@ -98,6 +98,6 @@ if __name__ == '__main__':
         #hydrolink.write_reach_options(outfile_name='test-data/test_hr_hydrolink_reach_output.csv')
 
         #Creates a CSV file with one reach per point.
-        in_file = input_data['file']  
+        in_file = input_data['file'][:-4]  #remove .csv or .shp
         output_file = f'{in_file}_output.csv'
         hydrolink.write_best(outfile_name= output_file)
