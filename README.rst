@@ -16,7 +16,7 @@ HydroLink
 
 
 
-Python package with methods to hydrolink (address) point information to National Hydrography Datasets using web services.
+Python package with methods to hydrolink (address) point information to National Hydrography Datasets using web services. Docs and tests are in progress.
 
 * Free software: unlicense
 * Documentation: https://hydrolink.readthedocs.io.
