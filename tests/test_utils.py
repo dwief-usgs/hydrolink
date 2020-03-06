@@ -6,6 +6,17 @@ import pytest
 from shapely.geometry import Point
 from hydrolink import utils
 
+def test_crs_to_nad83():
+    '''
+    Description
+    -----------
+    test if conversions are occuring correctly
+    4326 to 4269
+    3857 to 4269
+    5070 to 4269
+    '''
+    pass
+
 
 def test_clean_water_name():
     '''

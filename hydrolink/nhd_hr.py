@@ -78,7 +78,7 @@ class HighResPoint:
         
         #If buffer is greater than 2000 do not run and set error message
         if buffer_m > 2000:
-            self.message = ('Maximum buffer is 2000 meters, reduce buffer to less than 2000 meters.')
+            self.message = ('Maximum buffer is 2000 meters.')
             self.error_handling()
 
         #If buffer is less than or equal to 2000 then run 
