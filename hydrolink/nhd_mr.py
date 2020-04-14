@@ -1,410 +1,470 @@
-#Import packages
-import requests
-import geopandas as gpd
-import pandas as pd
-import numpy as np
-import difflib
-from shapely.geometry import Point, LineString
-import csv
-import re
-import os.path
+"""Allows for HydroLinking of data to the National Hydrography Dataset Plus Version 2.1 (NHDPlusV2.1).
 
-############################################################################################
-############################################################################################
-'''
+Module that HydroLinks data to the National Hydrography Dataset Plus Version 2.1 (NHDPlusV2.1). Classes
+and methods are designed to handle one feature at a time.  This module is designed to handle errors
+by returning a message to objects to help facilitate HydroLinking of multiple points in a single program.
+Currently only HydroLinks point data (not lines or polygons) to flowlines or waterbodies. The terms
+"HydroLink" and "addressing" are used synonymously throughout this code and both refer to making
+a relationship between a feature and a stream network, similar to addresses assigned to road networks.
+
 Author
----------
-Daniel Wieferich: dwieferich@usgs.gov
+----------
+Name: Daniel Wieferich
+Contact: dwieferich@usgs.gov
+"""
 
-Description
----------
-Module that allows for hydrolinking of data to the National Hydrography Dataset Medium Resolution V.2.1.
-Classes and methods are designed to handle one feature at a time.
-'''
+# Import packages
+import requests
+import csv
+import os.path
+from hydrolink import utils
+from shapely.geometry import Point
+
+############################################################################################
+############################################################################################
+
+
 class MedResPoint:
-    def __init__(self, input_identifier, input_lat, input_lon, input_crs=4269, water_name=None, buffer_m=1000):
-        '''
-        Description
-        ------------
-        Initiates attributes for linking a point to the NHD High Resolution
-        
+    """Class specific for HydroLinking point data to the NHDPlusV2.1."""
+
+    def __init__(self, source_identifier, input_lat, input_lon, input_crs=4269, water_name=None, buffer_m=1000):
+        """Initiate attributes for HydroLinking point data to the NHDHR.
+
+        During initiation of an object the buffer is verified to be less than 2000 meters.  Initiation
+        also converts supplied coordinates to NAD83 (crs=4269), and validates that coordinates are within
+        the bounds of the United States bounding box.  If any of these conditions caused a failed initiation
+        of an object an error message is created and the HydroLinking process does not run.
+
         Parameters
-        ------------
-        input_identifier: str, user supplied identifier
-        input_lat: float, latitude of the point to be hydrolinked
-        input_lon: float, longitude of the point to be hydrolinked
-        input_crs: int, coordinate reference system, default is 4269 which is NAD83
-        water_name: str, user supplied name of the waterbody a point is intended to be linked, optional
-        buffer_m: distance in meters to search around a point, for identifying reaches of interest, max is 2000
+        ----------
+        source_identifier: str
+            User supplied identifier
+        input_lat: float
+            Latitude of the point to be HydroLinked
+        input_lon: float
+            Longitude of the point to be HydroLinked
+        input_crs: int
+            Coordinate reference system, default is 4269 which is NAD83
+        water_name: str
+            User supplied name of the waterbody that a point occurs on. Optional
+        buffer_m: int
+            Distance in meters. Used as buffer to search for canidate NHD features
+            for HydroLinking
 
         Notes
-        ------------
-        x,y coordinate in NAD83 (CRS 4269) or WGS84 (CRS 4326) are recommended
-        water_name works best without abbreviations
-        larger buffers will take much longer to run, recommended to use the smallest buffer possible 
-        '''
-        if buffer_m > 2000:
-            print ('Maximum buffer is 2000 meters. To run efficiently it is recommended to use the smallest buffer possible.')
-            self.message('Buffer is to large, reduce buffer to less than 2000 meters.')
-            self.status = 0
-        else:
-            self.id = str(input_identifier)
-            self.init_lat = float(input_lat)
-            self.init_lon = float(input_lon)
-            self.init_crs = int(input_crs)
+        ----------
+        Coordinate system recommendations
+            Tested NAD83 (CRS 4269), WGS84 (CRS 4326), Albers (CRS 5070).  These are recommended.
+        Source name recommendations
+            To be most effective the water_name variable should contain no abbreviations and
+            only contain official names from USGS Geospatial Names Information System.
+        Buffer recommendations
+            Larger buffers will take much longer to run so it is to test need for large buffer
+            and using the smallest buffer possible.
+        Expected speed note
+            A set of 10 points were hydrolinked (4/13/2020) with average speed of 1 point per 0.74 seconds. This
+            includes request of data, name matching, and writing to csv.
+
+        """
+        self.source_id = str(source_identifier)
+        if water_name and str(water_name) != 'nan':
             self.water_name = str(water_name)
-            self.buffer_m = int(buffer_m)
-            self.status = 1  # where 0 is failed, 1 is worked
-            self.message = ''
-            self.reach_query = None
-            self.reach_df = None
-            self.best_reach = {
-                'input_id':input_identifier, 
-                'water_name':str(water_name),
-                'water_name_ref': str(water_name).lower(),
-                'GNIS_NAME': None,
-                'LENGTHKM': None,
-                'PERMANENT_IDENTIFIER': None,
-                'COMID': None,
-                'REACHCODE': None,
-                'snap_xy': None,
-                'snap_m': None,
-                'closest_node_m': None,
-                'closest': None,
-                'name_check': None,
-                'mult_reach_ct': None,
-                'name_check_txt': None,
-                'mr_meas': None,
-                'message':''
-                }
-        
-    def crs_to_4269(self):
-        '''
-        Description
-        ------------
-        Converts coordinate reference system to NAD83 aka crs 4269, and verifies coordinates are within United States.
-        Simple way of handling multiple crs, and providing user feedback before running service calls.
-        '''
-        if self.init_crs == 4269:
-            pass
         else:
-            try:
-                #build shapely point from coordinates
-                init_point = Point(self.init_lon, self.init_lat)
-                #create geoseries of shapely point  
-                pt_gdf = gpd.GeoSeries(init_point)
-                #set crs of geoseries, using user provided crs
-                epsg = f'epsg:{str(self.init_crs)}'
-                crs={'init':epsg}
-                pt_gdf.crs = crs
-                #reporject point
-                pt_gdf.to_crs({'init':'epsg:4269'})
-                #overwrite initial point data with crs 4269 representation
-                self.init_lon = pt_gdf[0].x
-                self.init_lat = pt_gdf[0].y
-                self.init_crs = 4269
+            self.water_name = None
+        self.buffer_m = int(buffer_m)
+        self.status = 1  # where 0 is failed, 1 is worked properly
+        self.message = ''
+        self.flowline_query = None
+        self.waterbody_query = None
+        self.hydrolink_waterbody = None
 
-                #Test to make sure coordinates are within U.S. including Puerto Rico and Virgian Islands.  
-                #This is based on a general bounding box and intended to pick up common issues like missing values, 0 values and positive lon values
-                if self.init_lat and (float(self.init_lat) > 17.5 and float(self.init_lat) < 71.5) and self.init_lon and (float(self.init_lon) < -64.0 and float(self.init_lon)> -178.5):
-                    self.message = f'Coordinates for id: {self.id} are outside of the bounding box of the United States.'
+        # If buffer is greater than 2000 do not run and set error message
+        if buffer_m > 2000:
+            self.message = ('Maximum buffer is 2000 meters, reduce buffer.')
+            self.error_handling()
+
+        # If buffer is less than or equal to 2000 then run
+        else:
+            # Try converting to NAD83 (crs==4269) coordinate system if different coordinate system provided
+            # If fails do not run and set error message
+            try:
+                self.init_lon = float(input_lon)
+                self.init_lat = float(input_lat)
+                self.input_point = Point(self.init_lon, self.init_lat)
+
+                if int(input_crs) != 4269:
+                    self.init_lon, self.init_lat = utils.crs_to_nad83(self.input_point, input_crs)
+
+                # Test to make sure coordinates are within U.S. including Puerto Rico and Virgian Islands.
+                # This is based on a general bounding box and intended to pick up common issues like missing values, 0 values and positive lon values
+                if (float(self.init_lat) > 17.5 and float(self.init_lat) < 71.5) and (float(self.init_lon) < -64.0 and float(self.init_lon) > -178.5):
+                    pass
+                else:
+                    self.message = f'Coordinates for id: {self.source_id} are outside of the bounding box of the United States.'
                     self.error_handling()
+
             except:
-                self.message = f'Issues handling provided coordinate system for {self.id}. Consider using a common crs like 4269 (NAD83) or 4326 (WGS84).'
+                self.message = f'Issues handling provided coordinate system or coordinates for {self.source_id}. Consider using a common crs like 4269 (NAD83) or 4326 (WGS84).'
                 self.error_handling()
-        
-    def build_nhd_query(self, service='network_flow'):
-        '''
-        Description
-        ------------
-        Builds query needed to return reaches of interest based on coordinates and buffer supplied by user.
-        
+
+    def hydrolink_method(self, method='name_match', hydro_type='flowline', outfile_name='nhdplusv2_hydrolink_output.csv', similarity_cutoff=0.6):
+        """Build HydroLinking pipeline based on specified method and hydro_type.
+
+        Builds commonly used HydroLink pipelines for users.
+        These pipelines write data to the outfile specified in "outfile_name".
+
         Parameters
-        ------------
-        service = define web service to use for query, options "network_flow" or "nonnetwork_flow"
-        '''
-        q = f"geometryType=esriGeometryPoint&inSR={self.init_crs}&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE,COMID,TERMINALFLAG&returnM=True"
-        if service == 'network_flow':
+        ----------
+        method: {'name_match', 'closest'}, default 'name_match'
+            Method for HydroLinking data. Supported methods are
+
+            - ``'name_match'``: This default method HydroLinks data to the closest NHD feature with a name similarity
+            that meets the specified similarity_cutoff. If no flowlines meet similarity cutoff the method HydroLinks
+            data to the closest NHD feature.
+            - ``'closest'``: This method HydroLinks data to the closest NHD feature.
+
+        hydro_type: {'waterbody', 'flowline'}, default 'flowline'
+            Type of features to HydroLink. Feature types as defined by NHDPlusV2.1.
+
+            - ``'flowline'``: This default feature type specifies NHD feature type of flowline.
+            Flowline features represent water types such as streams, rivers, canals/ditches.
+            Waterbodies also have line representations as flowline type.
+            - ``'waterbody'``: This feature type specifies NHD feature type of waterbody.
+            Waterbody features represent water types such as lakes, ponds, estuaries, reservoirs,
+            marshes, swamps.
+
+        outfile_name: str
+            Name and directory of csv output file.  default is 'nhdplusv2_hydrolink_output.csv'.
+        similarity_cutoff: float
+            Values between 0 and 1.0, range of similarity between 0 representing no match to 1.0 being perfect match.
+
+        """
+        if hydro_type in ['waterbody', 'flowline'] and method in ['name_match', 'closest'] and 0.6 <= similarity_cutoff <= 1.0:
+            if self.status == 1:
+                self.build_nhd_query(query=['network_flow', 'waterbody'])
+                if hydro_type == 'waterbody':
+                    self.is_in_waterbody()
+                self.query_flowlines()
+                self.hydrolink_flowlines()
+                if method == 'name_match':
+                    self.select_closest_flowline_w_name_match(similarity_cutoff=similarity_cutoff)
+                elif method == 'closest':
+                    self.select_closest_flowline()
+                self.write_hydrolink(outfile_name=outfile_name)
+            else:
+                self.write_hydrolink(outfile_name=outfile_name)
+
+    def build_nhd_query(self, query=['network_flow', 'waterbody']):
+        """Build queries to return required data for HydroLink process.
+
+        Parameters
+        ----------
+        query: list, default ['network_flow', 'waterbody']
+            Specifies MapServer instance to use for HydroLink. Uses user specified information from object.
+            Supported queries include
+
+            - ``'network_flow'``: Default query that returns data for flowline features within a buffer of
+            a given location. This query uses the WatersGeo MapServer layer from EPA.
+            - ``'nonnetwork_flow'``: Default query that returns data for flowline features within a buffer of
+            a given location. This query uses the WatersGeo MapServer layer from EPA.
+            - ``'waterbody'``: Query that returns data for the waterbody feature that intersects a given location.
+            This query uses the WatersGeo MapServer layer from EPA.
+            - ``'waterbody_flowline'``: Query that returns data for flowline features within a waterbody.
+            This query uses the WatersGeo MapServer layer from EPA.
+
+        Note(s)
+        ----------
+        Currently nonnetwork streams are only used if no streams are returned with network flowlines.
+        It would be best to query both network and nonnetwork and combine before hydrolinking but that
+        doubles the requests and would increase processing time and service loads...
+
+        """
+        if 'network_flow' in query:
+            q = f"geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID,TERMINALFLAG&returnM=True"
             base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2/query?'
-            self.reach_query = f"{base_url}{q}"
-        elif service == 'nonnetwork_flow':
+            self.flowline_query = f"{base_url}{q}"
+        if 'nonnetwork_flow' in query:
+            q = f"geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID&returnM=True"
             base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/3/query?'
-            self.reach_query = f"{base_url}{q}"        
+            self.nonnetwork_flowline_query = f"{base_url}{q}"
+        if 'waterbody' in query:
+            q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR=4269&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=PERMANENT_IDENTIFIER,COMID,GNIS_NAME,FTYPE,REACHCODE&returnGeometry=False"
+            base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/4/query?'
+            self.waterbody_query = f"{base_url}{q}"
+        if 'hem_waterbody_flowline' in query:
+            q = f"where=WBAREA_PERMANENT_IDENTIFIER IN (%27{self.hydrolink_waterbody['nhdplusv2 waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID,TERMINALFLAG&returnM=True"
+            base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2/query?'
+            self.flowline_query = f"{base_url}{q}"
 
-            
-    def find_closest_reaches(self, n=6):
-        '''
-        Description
-        ------------
-        Retrieve reaches within buffer distance, buffer_m attribute, of point. Orders results closest to furthest.
-        
+    def is_in_waterbody(self):
+        """Check to see if point location falls within waterbody feature.
+
+        Check to see if point location falls within waterbody feature.  If it does it collects HydroLink
+        data for the waterbody and also resets query of flowlines (self.flowline_query) to only return
+        flowlines that intersect with the waterbody.
+
         Parameters
-        ------------
-        n = int, number of reaches to return via self.reach_df   
-        '''
-        if self.status==1:  #if status = 0 we don't want to waste time processing
+        ----------
+        self.waterbody_query: str
+            Query built in build_nhd_query
+
+        Returns
+        ----------
+        self.hydrolink_waterbody: dictionary
+            Attributes of HydroLink (address) to waterbody
+        self.build_nhd_query: list
+            Reset self.build_nhd_query to query only flowlines within waterbody
+
+        """
+        # if status == 0 or if we do not have waterbody query set then skip to avoid wasted processing time
+        if self.status == 1 and self.waterbody_query is not None:
             try:
-                self.reach_json = requests.get(self.reach_query).json()
-                if 'features' in self.reach_json.keys() and len(self.reach_json['features'])>0:
-
-                    init_point = Point(self.init_lon, self.init_lat)  
-
-                    reach_data = []
-                    for line in self.reach_json['features']:
-                        attributes = line['attributes']
-                        line_geo = LineString([Point(float(x[0]),float(x[1])) for x in line['geometry']['paths'][0]]) #assumes not multi line
-
-                        #shortest distance from initial coordinates to the line
-                        snap_meas = line_geo.project(init_point)
-                        snap_xy = line_geo.interpolate(snap_meas) #for reach find x,y on line closest to input x,y
-                        snap_point = Point(snap_xy.x, snap_xy.y)
-                        snap_m = build_meas_line(snap_point, init_point, crs={'init':'epsg:4269'})
-                        
-                        # build lines to terminal nodes of reach and measure them
-                        meters_to_up_node = None
-                        meters_to_dwn_node = None
-                        closest_node_m = None
-                        for node in line['geometry']['paths'][0]:
-                            if node[2]==100 and attributes['TERMINALFLAG']==0:    #upstream confluence or upstream most point on network, unless it is terminal node     
-                                max_coord = Point(node[0], node[1])
-                                meters_to_up_node = build_meas_line(max_coord, init_point, crs={'init':'epsg:4269'}) #max measure is node at upstream end
-                            elif node[2]==0:
-                                min_coord = Point(node[0], node[1])
-                                meters_to_dwn_node = build_meas_line(min_coord, init_point, crs={'init':'epsg:4269'}) #min measure is node at downstream end
-                        if meters_to_dwn_node or meters_to_up_node:   #if one is not none
-                            closest_node_m = min(list(filter(None, [meters_to_dwn_node, meters_to_up_node])))
-
-                        
-                        attributes.update({'closest_node_m':closest_node_m, 'snap_m':snap_m, 'snap_xy':snap_xy})
-                        del attributes['TERMINALFLAG']
-
-                        reach_data.append(attributes)
-
-                        #keep n number of closest reaches, order them ascendingly and number closest=1 to furthest=n 
-                        df = (pd.DataFrame(reach_data)).nsmallest(n,'snap_m',keep='all')
-                        df = df.sort_values(by=['snap_m'])
-                        df = df.reset_index(drop=True)
-                        df['closest'] = df.index +1
-
-                        #df.drop(['geometry','snap_meas'],axis=1)
-                        self.reach_df = df
-                else:
-                    self.message = f'no reaches retrieved for id: {self.id}'
-                    self.error_handling()
+                results = requests.get(self.waterbody_query).json()
+                self.waterbody_json = results
+                if len(results['features']) > 0:
+                    self.hydrolink_waterbody = {'nhdplusv2 waterbody permanent identifier': results['features'][0]['attributes']['PERMANENT_IDENTIFIER'],
+                                                'nhdplusv2 waterbody gnis name': results['features'][0]['attributes']["GNIS_NAME"],
+                                                'nhdplusv2 waterbody reachcode': results['features'][0]['attributes']['REACHCODE'],
+                                                'nhdplusv2 waterbody ftype': results['features'][0]['attributes']['FTYPE'],
+                                                'nhdplusv2 waterbody comid': results['features'][0]['attributes']['COMID']
+                                                }
+                    self.build_nhd_query(query=['hem_waterbody_flowline'])
+                    # add name match here?
             except:
-                self.message = f'find best reach failed for id: {self.id}. possibly service call issue'
+                self.message = f'is_in_waterbody failed for: {self.source_id}. possibly service call issue'
                 self.error_handling()
-    
-    def water_name_match(self):
-        '''
-        Description: determine if user supplied water name matches nhd supplied gnis name
-        Note: It would be ideal to use np.where or alike to assign name_check values to all of the rows 
-        at one time but the fuzzy match was not working so current work around using itertuples.  Also
-        should be able to delete name_check_text but some users may find this helpful?
-        '''
-        if self.status==1:  #if status = 0 we don't want to waste time processing
-            if self.reach_df is not None and self.water_name is not None:
-                df = self.reach_df
-                #If GNIS is not null and names match assign a 1
-                df['name_check'] = np.where((df.GNIS_NAME.notnull()) & (df.GNIS_NAME.str.lower()==self.water_name.lower()), 1.0, 0)
-                for row in df.itertuples():
-                    #pid = (row.PERMANENT_IDENTIFIER)
-                    if row.name_check == 1:
-                        df.at[row.Index, 'name_check_txt'] = 'exact name match'
-                        self.best_reach.update({'water_name_ref':self.water_name.lower()})
 
-                    elif row.GNIS_NAME and self.water_name is not None:
-                        gnis= (row.GNIS_NAME).lower()
-                        #cleaned_water_name = (item.water_name).lower()
-                        cleaned_water_name = clean_water_name(self.water_name)
-                        self.best_reach.update({'water_name_ref':cleaned_water_name})
-                        if 'tributary' not in cleaned_water_name and 'branch' not in cleaned_water_name:
-                            match_ratio = difflib.SequenceMatcher(lambda x: x == " ", gnis, cleaned_water_name).ratio()
-                            df.at[row.Index, 'name_check'] = match_ratio
-                            # If match ratio is greater than 0.75, update df field 'name_check_txt'
-                            if match_ratio >= 0.75:
-                                df.at[row.Index, 'name_check_txt'] = 'most likely name match based on fuzzy match'
-                            # If match ratio is greater than 0.6 and less than 0.6, update df field 'name_check_txt'
-                            elif 0.75 > match_ratio >= 0.6:
-                                df.at[row.Index, 'name_check_txt'] = 'likely name match based on fuzzy match'                
-                        else:
-                            df.at[row.Index, 'name_check_txt'] = 'no name match, water name containing reference to tributary'
-                            df.at[row.Index, 'name_check'] = 0 
-                    else:
-                        df.at[row.Index, 'name_check_txt'] = 'no name match, water name and or gnis name not provided'
-                        df.at[row.Index, 'name_check'] = 0
-            else:
-                df['name_check_txt'] = 'no name match, water name not provided'
-                df['name_check'] = 0
-        
-    def select_best_reach(self):
-        '''
-        Description
-        ------------
-        Of returned reaches finds most likely reach based on available information
-        -First checks to see if any reaches have an exact match of names
-            -If number of reaches with exact name match equals 1 that is the reach to recommend
-            -If number of reaches with exact name match > 1 take the one that is closest to the point
-                -If more than one reach has exact name match and are equally close to the point grab the first but note that multiple reaches so that we can recommend taking a closer look
-        -If no reaches with exact name match then check for fuzzy matches over 0.75 cutoff
-        -If number of reaches with fuzzy name match equals 1 that is the reach to recommend
-        -If number of reaches with fuzzy name match > 1 take the one that is closest to the point
-            -If more than one reach has fuzzy name match and are equally close to the point grab the first one but note that multiple reaches so that we can recommend taking a closer look
-        -If fuzzy match < 0.75 just take closest reach.
-        '''
-        if self.status==1:
-            if self.reach_df is not None:
-                df = self.reach_df
-                if 'name_check' in df:
-                    name_check_1 = df.loc[df['name_check']==1]
+    def query_flowlines(self):
+        """Query flowlines using query built in build_nhd_query.
 
-                    if len(name_check_1.index)==1:
-                        vals = name_check_1.iloc[0].to_dict()
-                        vals.update({'mult_reach_ct': len(name_check_1)})
-                        self.best_reach.update(vals)
-                    elif len(name_check_1.index)>1:
-                        closest = name_check_1.nsmallest(1,'snap_m', keep='all') #take first indexed reach in list of closest reaches
-                        #if multiple reaches have same hl_snap_meters and matching names the count will be recorded in "mult_reach_ct" field
-                        vals = closest.iloc[0].to_dict()
-                        vals.update({'mult_reach_ct':len(closest)})
-                        self.best_reach.update(vals)
-                    elif len(name_check_1.index)==0:
-                        name_check_lt1 = df.loc[df['name_check']>=0.75]
-                        if len(name_check_lt1.index) == 1:
-                            vals = name_check_lt1.iloc[0].to_dict()
-                            vals.update({'mult_reach_ct':len(name_check_lt1)})
-                            self.best_reach.update(vals)
-                        elif len(name_check_lt1.index)>1:
-                            closest = name_check_lt1.nsmallest(1,'snap_m', keep='all')
-                            vals = closest.iloc[0].to_dict()
-                            vals.update({'mult_reach_ct':len(closest)})
-                            self.best_reach.update(vals)
-                        elif len(name_check_lt1.index)==0:
-                            closest = df.nsmallest(1,'snap_m', keep='all')
-                            vals = closest.iloc[0].to_dict()
-                            vals.update({'mult_reach_ct':len(closest)})
-                            self.best_reach.update(vals)
-                    else:
-                        self.message = f'unable to select best reach for id: {self.id}.'
+        Query flowlines using query built in build_nhd_query.  Handles failed requests and
+        instances where no flowlines are returned.
+
+        Parameters
+        ----------
+        self.flowline_query: str
+            Query built in build_nhd_query
+
+        Returns
+        ----------
+        self.flowlines_json: dictionary
+            JSON returned from request of flowline_query.  JSON contains data about flowlines.
+
+        """
+        if self.status == 1:  # if status == 0 we don't want to waste time processing
+            try:
+                self.flowlines_json = requests.get(self.flowline_query).json()
+                if 'features' in self.flowlines_json.keys() and len(self.flowlines_json['features']) == 0:
+                    self.build_nhd_query(query=['nonnetwork_flow'])
+                    self.flowlines_json = requests.get(self.nonnetwork_flowline_query).json()
+                    if 'features' in self.flowlines_json.keys() and len(self.flowlines_json['features']) == 0:
+                        self.message = f'No flowlines selected in query_flowlines for id: {self.source_id}. Try increasing buffer.'
                         self.error_handling()
-                else:
-                    self.message = f'water match function was not used for {self.id}, using this function will lower the probability of finding best reach match'
-                    print (self.message)
-                    closest = df.nsmallest(1,'snap_m', keep='all')
-                    vals = closest.iloc[0].to_dict()
-                    vals.update({'mult_reach_ct':len(closest), 'message':self.message})
-                    self.best_reach.update(vals)
-                        
-            else:
-                self.message = f'no dataframe for: {self.id}. make sure functions are called in correct sequence'
+            except:
+                self.message = f'query_flowlines failed for id: {self.source_id}. Request failed.'
                 self.error_handling()
-        
-    def get_hl_measure(self):
-        '''
-        Description
-        ------------
-        Use HEM SOE extension HEMPointEvents to pass the snap location on best reach to return reach measure.
-        Documentation of HEMPointEvents is found https://edits.nationalmap.gov/hem-soe-docs/soe-reference/hem-point-events.html
-        '''
+
+    def hydrolink_flowlines(self):
+        """Evaluate flowlines in self.flowlines_json to understand certainty for HydroLink selection.
+
+        Evaluate flowlines in self.flowlines_json to understand certainty for HydroLink selection.
+        Evaluations include calculating distance to each flowline, calculating distance to closest
+        confluence, calculate name similarity for water names. Handles instances where no flowlines
+        are available and failed evaluations.
+
+        Parameters
+        ----------
+        self.flowlines_json: dictionary
+            JSON returned from request of flowline_query.  JSON contains data about flowlines.
+        self.water_name: str
+            User supplied name of the waterbody that a point occurs on. Optional
+        self.input_point: shapely point
+            Input location for hydrolinking. For formatting see shapely.geometry Point method
+
+        Returns
+        ----------
+        self.closest_confluence_meters: float
+            Distance from input point to closest confluence in meters, see utils.closest_confluence
+        self.flowline_data: dictionary
+            Contains information about a flowline
+
+        """
+        # if status == 0 we don't want to waste time processing
         if self.status == 1:
-            if 'snap_xy' in self.best_reach.keys():
-                get_mr_hl = 'https://ofmpub.epa.gov/waters10/PointIndexing.Service'
-                x = self.best_reach['snap_xy'].x
-                y = self.best_reach['snap_xy'].y
-                xy_mr2 = f"POINT({x} {y})"
-
-                payload_mr2 = {
-                    'optNHDPlusDataset': '2.1',
-                    'pGeometry': xy_mr2,
-                    'pGeometryMod': 'SRID=4269',
-                    'pOutputPathFlag': 'TRUE',
-                    'pPointIndexingMaxDist': '0.1', #Kilometers
-                    'pPointIndexingMethod':'DISTANCE',
-                    'pResolution': '3',
-                    'pPointIndexingFcodeDeny' : [56600],
-                    'pReturnFlowlineGeomFlag':'FALSE',
-                    'f':'json'}
-
+            if 'features' in self.flowlines_json.keys() and len(self.flowlines_json['features']) > 0:
                 try:
-                    self.mr_hl = requests.post(get_mr_hl,params=payload_mr2,verify=False).json()
-                    meas_mr2 = self.mr_hl['output']['ary_flowlines'][0]['fmeasure']
-                    self.best_reach.update({'mr_meas':meas_mr2})
-                except:
-                    self.message='get_hl_measure failed'
-                    self.best_reach.update({"meas": None, 'message': self.message})
-            else:
-                self.message = f'no snap point to run point indexing on id: {self.id}'
-                message = {'message': self.message}
-                self.best_reach.update(message)
-        
-    
-    def error_handling(self):
-        '''
-        Description
-        ------------
-        when error is captured, document and send message to user
-        '''
-        self.status = 0
-        message = {'message': self.message}
-        self.best_reach.update(message)  
-        print (self.message)
+                    flowlines_data = []
+                    all_flowline_terminal_node_points = []
+                    for flowline_data in self.flowlines_json['features']:
+                        flowline_attributes, terminal_node_points, flowline_geo = utils.build_flowline_details(flowline_data, self.input_point, 'nhdplusv2', self.water_name)
+                        flowlines_data.append(flowline_attributes)
+                        all_flowline_terminal_node_points = all_flowline_terminal_node_points + terminal_node_points
 
-    def write_best(self, outfile_name='mr_hydrolink_output.csv'):
+                    self.closest_confluence_meters = utils.closest_confluence(all_flowline_terminal_node_points, self.input_point, flowline_geo)
+                    self.flowlines_data = flowlines_data
+
+                except:
+                    self.message = f'hydrolink_flowlines failed for id: {self.source_id}.'
+                    self.error_handling()
+            else:
+                self.message = f'no flowlines retrieved for id: {self.source_id}'
+                self.error_handling()
+
+    def select_closest_flowline(self, similarity_cutoff=0.6):
+        """Select closest flowline.
+
+        Selects closest flowline from flowlines_data, including all evaluation information
+        for the flowline. Although name similarity is not considered for selection it is used
+        to document if a name matched flowline is available. Requires output from hydrolink_flowlines.
+
+        """
+        if self.status == 1:
+            df = utils.df_for_selection(self.flowlines_data)
+            df = df.rename(columns={"lengthkm": "nhdplusv2 flowline length km",
+                                    "reachcode": "nhdplusv2 flowline reachcode",
+                                    "gnis_name": "nhdplusv2 flowline gnis name",
+                                    "comid": "nhdplusv2 comid",
+                                    "terminalflag": "nhdplusv2 terminal flag",
+                                    "permanent_identifier": "nhdplusv2 flowline permanent identifier"
+                                    })
+            self.total_count_flowlines = df.shape[0]
+            self.name_match_in_buffer = df.loc[df['flowline name similarity'] >= similarity_cutoff].shape[0]
+
+            df = df.nsmallest(1, 'meters from flowline', keep='all')
+            if df.shape[0] > 1:
+                self.message = f'multiple flowlines with same snap distance for id: {self.source_id}. Use name_match method.'
+                self.error_handling()
+
+            else:
+                self.hydrolink_flowline = ((df.to_dict('records'))[0])
+
+    def select_closest_flowline_w_name_match(self, similarity_cutoff=0.6):
+        """Select closest flowline with matching water name.
+
+        HydroLink data to the closest NHD feature with a name similarity that meets the specified
+        similarity_cutoff. If no flowlines meet similarity cutoff the method HydroLinks data to the
+        closest NHD feature. Requires output from hydrolink_flowlines.
+        """
+        if self.status == 1:
+            df = utils.df_for_selection(self.flowlines_data)
+            df = df.rename(columns={"lengthkm": "nhdplusv2 flowline length km",
+                                    "reachcode": "nhdplusv2 flowline reachcode",
+                                    "gnis_name": "nhdplusv2 flowline gnis name",
+                                    "comid": "nhdplusv2 comid",
+                                    "terminalflag": "nhdplusv2 terminal flag",
+                                    "permanent_identifier": "nhdplusv2 flowline permanent identifier"
+                                    })
+            self.total_count_flowlines = df.shape[0]
+            df_1 = df.loc[df['flowline name similarity'] == 1.0]
+            df_similarity = df.loc[df['flowline name similarity'] >= similarity_cutoff]
+            # only 1 flowline has extact matching name
+            if df_1.shape[0] == 1:
+                self.hydrolink_flowline = ((df.to_dict('records'))[0])
+            # more than 1 flowline has exact matching name, grab closest of matching name flowlines
+            elif df_1.shape[0] > 1:
+                df_1 = df_1.nsmallest(1, 'meters from flowline', keep='all')
+                if df_1.shape[0] > 1:
+                    self.message = f'multiple flowlines with same snap distance for id: {self.source_id}.'
+                    self.error_handling()
+                else:
+                    self.hydrolink_flowline = ((df_1.to_dict('records'))[0])
+            # only one flowline has matching name meeting similarity cutoff
+            elif df_1.shape[0] == 0 and df_similarity.shape[0] == 1:
+                self.hydrolink_flowline = ((df_similarity.to_dict('records'))[0])
+            # select closest flowline meeting name match similarity cutoff
+            elif df_1.shape[0] == 0 and df_similarity.shape[0] > 1:
+                df_similarity = df_similarity.nsmallest(1, 'meters from flowline', keep='all')
+                if df_similarity.shape[0] > 1:
+                    self.message = f'multiple flowlines with same snap distance for id: {self.source_id}.'
+                    self.error_handling()
+                else:
+                    self.hydrolink_flowline = ((df_similarity.to_dict('records'))[0])
+            # no flowlines with name match, select closest
+            else:
+                df = df.nsmallest(1, 'meters from flowline', keep='all')
+                if df.shape[0] > 1:
+                    self.message = f'multiple flowlines with same snap distance for id: {self.source_id}.'
+                    self.error_handling()
+                else:
+                    self.hydrolink_flowline = ((df.to_dict('records'))[0])
+
+    def error_handling(self):
+        """Handle errors throughout HydroLink."""
+        self.status = 0
+        print(self.message)
+
+    def write_hydrolink(self, outfile_name='nhdplusv2_hydrolink_output.csv'):
+        """Write HydroLink data output to CSV."""
         file_exists = os.path.isfile(outfile_name)
+        if self.status == 1:
+            source_data = {'source id': self.source_id,
+                           'source water name': self.water_name,
+                           'source lat nad83': self.init_lat,
+                           'source lon nad83': self.init_lon,
+                           'closest conluence meters': self.closest_confluence_meters,
+                           'source buffer meters': self.buffer_m,
+                           'total count flowlines in buffer': self.total_count_flowlines,
+                           'hydrolink message': self.message}
+            source_data.update(self.hydrolink_flowline)
+            if self.hydrolink_waterbody is not None:
+                source_data.update(self.hydrolink_waterbody)
+        elif self.status == 0:
+            source_data = {'source id': self.source_id,
+                           'source water name': self.water_name,
+                           'source lat nad83': self.init_lat,
+                           'source lon nad83': self.init_lon,
+                           'source buffer meters': self.buffer_m,
+                           'hydrolink message': self.message}
+        field_names = ['source id', 'source lat nad83', 'source lon nad83', 'source buffer meters',
+                       'closest conluence meters', 'closest flowline order', 'total count flowlines in buffer',
+                       'source water name', 'cleaned source water name', 'flowline name similarity',
+                       'flowline name similarity message', 'nhdplusv2 flowline gnis name', 'nhdplusv2 comid',
+                       'nhdplusv2 flowline length km', 'nhdplusv2 flowline reachcode',
+                       'meters from flowline', 'nhdplusv2 flowline measure',
+                       'nhdplusv2 terminal flag', 'nhdplusv2 waterbody permanent identifier',
+                       'nhdplusv2 waterbody gnis name', 'nhdplusv2 waterbody reachcode',
+                       'nhdplusv2 waterbody ftype', 'nhdplusv2 waterbody comid', 'hydrolink message'
+                       ]
         with open(outfile_name, 'a', newline='') as csv_file:
-            field_names = self.best_reach.keys()
             writer = csv.DictWriter(csv_file, fieldnames=field_names, delimiter=',')
             if not file_exists:
                 writer.writeheader()
-            writer.writerow(self.best_reach)
+            writer.writerow(source_data)
 
-    def write_reach_options(self, outfile_name='mr_hydrolink_reach_output.csv'):
-        if self.status ==1:
-            file_exists = os.path.isfile(outfile_name)
-            with open(outfile_name, 'a', newline='') as csv_file:
-                for r in self.reach_df.to_dict(orient='records'):
-                    r.update({'input_id':self.id})
-                    writer = csv.DictWriter(csv_file, r.keys(), delimiter=',')
-                    if not file_exists:
-                        writer.writeheader()
-                        file_exists=True
-                    writer.writerow(r)
+    # def get_hl_measure(self):
+    #     '''
+    #     Description
+    #     ------------
+    #     Use HEM SOE extension HEMPointEvents to pass the snap location on best reach to return reach measure.
+    #     Documentation of HEMPointEvents is found https://edits.nationalmap.gov/hem-soe-docs/soe-reference/hem-point-events.html
+    #     '''
+    #     if self.status == 1:
+    #         if 'snap_xy' in self.best_reach.keys():
+    #             get_mr_hl = 'https://ofmpub.epa.gov/waters10/PointIndexing.Service'
+    #             x = self.best_reach['snap_xy'].x
+    #             y = self.best_reach['snap_xy'].y
+    #             xy_mr2 = f"POINT({x} {y})"
 
-def build_meas_line(point1, point2, crs={'init':'epsg:4269'}):
-    '''
-    Description: where point1 and 2 are shapely points
-    '''
-    line_geom = LineString([point1, point2]) 
-    line_geoseries = gpd.GeoSeries(line_geom)           
-    line_geoseries.crs = crs
-    line_geoseries=line_geoseries.to_crs({'init':'epsg:5070'})
-    line_length_meters = line_geoseries.length[0]
-    return line_length_meters
+    #             payload_mr2 = {
+    #                 'optNHDPlusDataset': '2.1',
+    #                 'pGeometry': xy_mr2,
+    #                 'pGeometryMod': 'SRID=4269',
+    #                 'pOutputPathFlag': 'TRUE',
+    #                 'pPointIndexingMaxDist': '0.1', #Kilometers
+    #                 'pPointIndexingMethod':'DISTANCE',
+    #                 'pResolution': '3',
+    #                 'pPointIndexingFcodeDeny' : [56600],
+    #                 'pReturnFlowlineGeomFlag':'FALSE',
+    #                 'f':'json'}
 
-def clean_water_name(name):
-    '''
-    Description: replace common abbreviations, this needs improvement but be careful not to replace 
-    strings we dont want to this code currently assumes GNIS_NAME never contains abbreviations... 
-    something to verify. If you have a better way to do this let me know!!!!
-    '''
-    
-    name_lower = f' {name.lower()} '
-    name_lower = re.sub("[\(\[].*?[\)\]]", "", name_lower)
-    name_lower = name_lower.replace(' st. ', ' stream')
-    name_lower = name_lower.replace(' st ', ' stream')
-    name_lower = name_lower.replace(' str ', ' stream')
-    name_lower = name_lower.replace(' rv. ', ' river')
-    name_lower = name_lower.replace(' rv ', ' river')
-    name_lower = name_lower.replace('unt ', 'unnamed tributary ')
-    name_lower = name_lower.replace(' trib. ', ' tributary')
-    name_lower = name_lower.replace(' trib) ', ' tributary')
-    name_lower = name_lower.replace(' trib ', ' tributary')
-    name_lower = name_lower.replace(' ck ', ' creek')
-    name_lower = name_lower.replace(' ck. ', ' creek')
-    name_lower = name_lower.replace(' br ', ' branch')
-    name_lower = name_lower.replace(' br. ', ' branch')
-    water_name_cleaned = name_lower.strip()
-    return water_name_cleaned  
-
-############################################################################################
-############################################################################################
+    #             try:
+    #                 self.mr_hl = requests.post(get_mr_hl,params=payload_mr2,verify=False).json()
+    #                 meas_mr2 = self.mr_hl['output']['ary_flowlines'][0]['fmeasure']
+    #                 self.best_reach.update({'mr_meas':meas_mr2})
+    #             except:
+    #                 self.message='get_hl_measure failed'
+    #                 self.best_reach.update({"meas": None, 'message': self.message})
+    #         else:
+    #             self.message = f'no snap point to run point indexing on id: {self.id}'
+    #             message = {'message': self.message}
+    #             self.best_reach.update(message)
