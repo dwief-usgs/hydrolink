@@ -19,7 +19,7 @@ warnings.simplefilter('ignore')
 
 
 @click.command()
-@click.option('--input_file', required=True, show_default=True, default='tests/test-data.csv', help='Enter file name, including extension (only accepts .csv and .shp)')
+@click.option('--input_file', required=True, show_default=True, default='../test-data.csv', help='Enter file name, including extension (only accepts .csv and .shp)')
 @click.option('--latitude_field', required=True, show_default=True, default='y', help='Enter field name for latitude, note this is case sensitive')
 @click.option('--longitude_field', required=True, show_default=True, default='x', help='Enter field name for longitude, note this is case sensitive')
 @click.option('--stream_name_field', required=True, show_default=True, default='stream', help='Enter field name for stream name, if none type None, note this is case sensitive')
@@ -32,15 +32,9 @@ warnings.simplefilter('ignore')
 def handle_data(input_file, latitude_field, longitude_field, stream_name_field, identifier_field, crs, buffer, method, nhd_version, hydro_type):
     """Hydrolink point data to the nhd high resolution.
 
-    First set appropriate Python environment.
-    Run HydroLinker. Examples included below.
-
-    python hydrolinker.py >>> runs with defaults
-
-    python hydrolinker.py --input_file=file_name.csv >>> runs with specified file name and default other values
-
-    Returns
-    >>> writes hydrolinked (hydro addressed information to csv file)
+    HydroLinker accepts a CSV file of multiple points of interest, HydroLinks each to
+    the specified version of NHD and writes HydroLink data (addresses to NHD) along with
+    measures of certainty to a csv file.
 
     """
     click.echo('Thank you, processing now...')
