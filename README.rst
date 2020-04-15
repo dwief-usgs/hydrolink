@@ -20,6 +20,7 @@ Python package with methods to hydrolink (address) point information to National
 
 * Free software: unlicense
 * Documentation: https://hydrolink.readthedocs.io.
+* Related HydroLink Efforts: https://doi.org/10.5066/P9KRWCFL
 
 
 Contact
@@ -29,7 +30,7 @@ Daniel Wieferich (dwieferich@usgs.gov)
 
 Purpose
 -------
-Hydrolinking refers to the linkage of spatial data to a stream network.  This is similar to the analogy of addresses in a road network.  This package is specific to versions of the National Hydrography Dataset that have mapservices (currently the NHDPlusV2.1 Medium Resolution, NHD High Resolution, and NHD High Resolution Plus are supported) and current methods support hydrolinking of point data. Hydrolinking data to the NHD provides context to the hydrographic network and allows for integration of information in a common spatial framework/context.
+Hydrolink refers to the linkage of spatial data to a stream network.  This is similar to the analogy of providing an addresses on a road network and provides context to the hydrographic network allowing for integration of information into a common spatial framework/context.  This package accepts point data and HydroLinks to versions of the National Hydrography Dataset (NHD) using MapServices. Two versions of the NHD are currently support including the NHDPlusV2.1 Medium Resolution and the NHD High Resolution. 
 
 Requirements
 ------------
@@ -37,9 +38,18 @@ Currently working to get startup and requirements in a more usable state. In mea
 
 Getting Started
 ---------------
-hydrolinker.py -> Command line interface (using click) to run hydrolink on NHD High Resolution data.  Included version uses default methods.  See hydrolinker.py --help for details.
+Install the package
+* pip install git+https://github.com/dwief-usgs/hydrolink.git
 
-example-using-single-point-nhd-high-resolution.ipynb -> Jupyter notebook with descriptions on how to run hydrolink on NHD High Resolution for a single point location.
+Using the hydrolinker command line tool you can HydroLink all points in a CSV file.  
+
+* Access help menu -> python -m hydrolink.hydrolinker --help
+* Example running with default options ->  python -m hydrolink.hydrolinker --input_file=file_name.csv
+
+Two Jupyter Notebooks are included to show a few basic capabilities for both NHD versions.
+
+* example-using-single-point-nhd-high-resolution.ipynb -> Jupyter notebook with descriptions on how to run hydrolink methods on NHD High Resolution for a single point location.
+* example-using-single-point-nhd-medium-resolution.ipynb -> Jupyter notebook with descriptions on how to run hydrolink methods on NHDPlusV2.1 for a single point location.
 
 Documentation
 -------------
