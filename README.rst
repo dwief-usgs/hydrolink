@@ -23,26 +23,36 @@ Python package with methods to hydrolink (address) point information to National
 
 
 Contact
---------
+-------
 Daniel Wieferich (dwieferich@usgs.gov)
 
 
 Purpose
---------
+-------
 Hydrolinking refers to the linkage of spatial data to a stream network.  This is similar to the analogy of addresses in a road network.  This package is specific to versions of the National Hydrography Dataset that have mapservices (currently the NHDPlusV2.1 Medium Resolution, NHD High Resolution, and NHD High Resolution Plus are supported) and current methods support hydrolinking of point data. Hydrolinking data to the NHD provides context to the hydrographic network and allows for integration of information in a common spatial framework/context.
 
 Requirements
---------
+------------
 Currently working to get startup and requirements in a more usable state. In meantime requirements.txt shows condensed version of packages, while requirements_dev shows a full list of packages used in development.
 
 Getting Started
---------
+---------------
 hydrolinker.py -> Command line interface (using click) to run hydrolink on NHD High Resolution data.  Included version uses default methods.  See hydrolinker.py --help for details.
 
 example-using-single-point-nhd-high-resolution.ipynb -> Jupyter notebook with descriptions on how to run hydrolink on NHD High Resolution for a single point location.
 
+Documentation
+-------------
+Documentation can be found at this link ()
+
+Documentation HTML can be generated using this command from the docs folder. 
+
+``
+make html
+``
+
 Copyright and License
---------
+---------------------
 This USGS product is considered to be in the U.S. public domain, and is licensed under
 [unlicense](https://unlicense.org/).
 
