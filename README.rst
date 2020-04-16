@@ -3,9 +3,6 @@ HydroLink
 =========
 
 
-.. image:: https://img.shields.io/pypi/v/hydrolink.svg
-        :target: https://pypi.python.org/pypi/hydrolink
-
 .. image:: https://img.shields.io/travis/dwief-usgs/hydrolink.svg
         :target: https://travis-ci.com/dwief-usgs/hydrolink
 
