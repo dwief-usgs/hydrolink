@@ -14,3 +14,6 @@ install:
 # Command to run tests, e.g. python setup.py test
 script: 
   - pytest --cov-report term --cov=./hydrolink tests/
+
+after_success:
+  - codecov
