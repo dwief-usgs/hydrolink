@@ -2,9 +2,11 @@
 HydroLink
 =========
 
-
 .. image:: https://img.shields.io/travis/dwief-usgs/hydrolink.svg
         :target: https://travis-ci.com/dwief-usgs/hydrolink
+
+.. image:: https://codecov.io/gh/dwief-usgs/hydrolink/branch/master/graph/badge.svg
+        :target: https://codecov.io/gh/dwief-usgs/hydrolink
 
 .. image:: https://readthedocs.org/projects/hydrolink/badge/?version=latest
         :target: https://hydrolink.readthedocs.io/en/latest/?badge=latest
