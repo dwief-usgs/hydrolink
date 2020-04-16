@@ -5,7 +5,6 @@ python:
   - 3.8
   - 3.7
   - 3.6
-  - 3.5
 
 # Command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install:
@@ -14,4 +13,4 @@ install:
 
 # Command to run tests, e.g. python setup.py test
 script: 
-  - pytest --cov-report term --cov=./hydrolink
+  - pytest --cov-report term --cov=./hydrolink tests/
