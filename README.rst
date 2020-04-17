@@ -38,6 +38,7 @@ Currently working to get startup and requirements in a more usable state. In mea
 Getting Started
 ---------------
 Install the package
+
 * pip install git+https://github.com/dwief-usgs/hydrolink.git
 
 Using the hydrolinker command line tool you can HydroLink all points in a CSV file.  
