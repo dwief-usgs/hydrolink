@@ -29,11 +29,11 @@ Daniel Wieferich (dwieferich@usgs.gov)
 
 Purpose
 -------
-Hydrolink refers to the linkage of spatial data to a stream network.  This is similar to the analogy of providing an addresses on a road network and provides context to the hydrographic network allowing for integration of information into a common spatial framework/context.  This package accepts point data and HydroLinks to versions of the National Hydrography Dataset (NHD) using MapServices. Two versions of the NHD are currently support including the NHDPlusV2.1 Medium Resolution and the NHD High Resolution. 
+Hydrolink refers to the linkage of spatial data to a stream network.  This is similar to the analogy of providing an addresses on a road network and provides context to the hydrographic network allowing for integration of information into a common spatial framework/context.  This package accepts point data and HydroLinks to versions of the National Hydrography Dataset (NHD) using MapServices. Two versions of the NHD are currently supported including the NHDPlusV2.1 Medium Resolution and the NHD High Resolution. 
 
 Requirements
 ------------
-Currently working to get startup and requirements in a more usable state. In meantime requirements.txt shows condensed version of packages, while requirements_dev shows a full list of packages used in development.
+Requirements.txt shows condensed version of packages, while requirements_dev shows a full list of packages used in development.
 
 Getting Started
 ---------------
