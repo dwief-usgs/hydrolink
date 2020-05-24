@@ -6,3 +6,4 @@ black
 sphinx
 cloud-sptheme 
 codecov
+validators
