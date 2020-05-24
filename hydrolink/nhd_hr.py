@@ -195,7 +195,7 @@ class HighResPoint:
 
         # returns flowlines associated with a waterbody (e.g. reservoir, lake...)
         if 'hem_waterbody_flowline' in query:
-            q = f"where=WBAREA_PERMANENT_IDENTIFIER IN (%27{self.hydrolink_waterbody['nhdhr waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
+            q = f"where=WBAREA_PERMANENT_IDENTIFIER%20IN%20(%27{self.hydrolink_waterbody['nhdhr waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.flowline_query = f"{base_url}{q}"
 

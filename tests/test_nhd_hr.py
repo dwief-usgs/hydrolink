@@ -5,13 +5,29 @@
 import pytest
 from hydrolink import nhd_hr
 import requests
+import validators
+
+# Create test point that can be used for tests
+ident, good_lat, good_lon = 2, 42.7284, -84.5026
+test_point = nhd_hr.HighResPoint(ident, good_lat, good_lon)
+
+
+def test_build_nhd_query():
+    """Validate structure of url."""
+    # test hem_flowline and hem_waterbody
+    test_point.build_nhd_query(query=['hem_flowline', 'hem_waterbody'])
+    assert validators.url(test_point.flowline_query)
+    assert validators.url(test_point.waterbody_query)
+
+    # test hem_waterbody_flowline
+    test_point.hydrolink_waterbody = {}
+    test_point.hydrolink_waterbody['nhdhr waterbody permanent identifier'] = '88894713'
+    test_point.build_nhd_query(query=['hem_waterbody_flowline'])
+    assert validators.url(test_point.flowline_query)
 
 
 def test_input_buffer():
     """Tests to ensure buffer logic is working properly."""
-    # Set needed variables
-    ident, good_lat, good_lon = 2, 42.7284, -84.5026
-
     good_buffers = [0, 10, 2000]
     for buffer in good_buffers:
         # Good buffer, good lat, lon should have status=1
@@ -28,7 +44,6 @@ def test_input_buffer():
 
 def test_input_coordinates():
     """Make sure code handles lat or lon falling outside U.S. bounds."""
-    ident, good_lat, good_lon = 2, 42.7284, -84.5026
     bad_lat = 17.4
     bad_lon = -63.9
 
