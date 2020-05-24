@@ -191,8 +191,8 @@ class MedResPoint:
             q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR=4269&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=PERMANENT_IDENTIFIER,COMID,GNIS_NAME,FTYPE,REACHCODE&returnGeometry=False"
             base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/4/query?'
             self.waterbody_query = f"{base_url}{q}"
-        if 'hem_waterbody_flowline' in query:
-            q = f"where=WBAREA_PERMANENT_IDENTIFIER IN (%27{self.hydrolink_waterbody['nhdplusv2 waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID,TERMINALFLAG&returnM=True"
+        if 'waterbody_flowline' in query:
+            q = f"where=WBAREA_PERMANENT_IDENTIFIER%20IN%20(%27{self.hydrolink_waterbody['nhdplusv2 waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID,TERMINALFLAG&returnM=True"
             base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2/query?'
             self.flowline_query = f"{base_url}{q}"
 
@@ -228,7 +228,7 @@ class MedResPoint:
                                                 'nhdplusv2 waterbody ftype': results['features'][0]['attributes']['FTYPE'],
                                                 'nhdplusv2 waterbody comid': results['features'][0]['attributes']['COMID']
                                                 }
-                    self.build_nhd_query(query=['hem_waterbody_flowline'])
+                    self.build_nhd_query(query=['waterbody_flowline'])
                     # add name match here?
             except:
                 self.message = f'is_in_waterbody failed for: {self.source_id}. possibly service call issue'
