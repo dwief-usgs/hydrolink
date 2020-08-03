@@ -183,19 +183,19 @@ class HighResPoint:
         """
         # hem flowlines within a buffer of coordinates
         if 'hem_flowline' in query:
-            q = f"geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
+            q = f"where=ftype%20NOT%20IN%20(420,428,566)&geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=gnis_name,lengthkm,permanent_identifier,reachcode&returnM=True"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.flowline_query = f"{base_url}{q}"
 
         # hem waterbody returns information about hem waterbodies that the point is within
         if 'hem_waterbody' in query:
-            q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR=4269&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=PERMANENT_IDENTIFIER,GNIS_NAME,FTYPE,REACHCODE&returnGeometry=False"
+            q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR=4269&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=permanent_identifier,gnis_name,ftype,reachcode&returnGeometry=False"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2/query?'
             self.waterbody_query = f"{base_url}{q}"
 
         # returns flowlines associated with a waterbody (e.g. reservoir, lake...)
         if 'hem_waterbody_flowline' in query:
-            q = f"where=WBAREA_PERMANENT_IDENTIFIER%20IN%20(%27{self.hydrolink_waterbody['nhdhr waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,PERMANENT_IDENTIFIER,REACHCODE&returnM=True"
+            q = f"where=WBAREA_PERMANENT_IDENTIFIER%20IN%20(%27{self.hydrolink_waterbody['nhdhr waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=gnis_name,lengthkm,permanent_identifier,reachcode&returnM=True"
             base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.flowline_query = f"{base_url}{q}"
 

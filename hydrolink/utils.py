@@ -138,8 +138,10 @@ def nhd_flowline_measure(flowline_geo, node_measures, flowline_snap_point):
 
     if flowline_line.project(min_node_point) > flowline_line.project(max_node_point):
         nhd_measure = (float(max(node_measures)) - ((float(flowline_total_meas) * float(length_line_to_point)) / float(length_line_total)))
-    else:
+    elif length_line_total != 0:
         nhd_measure = (((float(flowline_total_meas) * float(length_line_to_point)) / float(length_line_total)) + float(min(node_measures)))
+    else:
+        nhd_measure = None
 
     return nhd_measure
 
