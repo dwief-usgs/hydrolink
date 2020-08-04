@@ -180,11 +180,11 @@ class MedResPoint:
 
         """
         if 'network_flow' in query:
-            q = f"geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID,TERMINALFLAG&returnM=True"
+            q = f"where=FTYPE%20NOT%20IN%20(420,428,566)&geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID,TERMINALFLAG&returnM=True"
             base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2/query?'
             self.flowline_query = f"{base_url}{q}"
         if 'nonnetwork_flow' in query:
-            q = f"geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID&returnM=True"
+            q = f"where=FTYPE%20NOT%20IN%20(420,428,566)&geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=GNIS_NAME,LENGTHKM,REACHCODE,COMID&returnM=True"
             base_url = 'https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/3/query?'
             self.nonnetwork_flowline_query = f"{base_url}{q}"
         if 'waterbody' in query:
