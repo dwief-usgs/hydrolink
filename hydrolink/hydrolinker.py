@@ -79,7 +79,7 @@ def handle_data(input_file, latitude_field, longitude_field, stream_name_field, 
         if nhd_version == 'nhdhr':
             hydrolink = nhd_hr.HighResPoint(row.id, float(row.lat), float(row.lon), input_crs=int(row.crs), water_name=str(row.stream), buffer_m=buffer)
         elif nhd_version == 'nhdplusv2':
-            hydrolink = nhd_mr.HighResPoint(row.id, float(row.lat), float(row.lon), input_crs=int(row.crs), water_name=str(row.stream), buffer_m=buffer)
+            hydrolink = nhd_mr.MedResPoint(row.id, float(row.lat), float(row.lon), input_crs=int(row.crs), water_name=str(row.stream), buffer_m=buffer)
         hydrolink.hydrolink_method(method=method, hydro_type=hydro_type)
 
         # in_file = in_data['file'][:-4]  #remove .csv or .shp
