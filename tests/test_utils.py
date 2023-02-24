@@ -83,7 +83,7 @@ def test_build_distance_line():
     Line lengths were measured in arcmap.  Accounts for 1% rounding error.
     """
     # Input CRS which all data are transformed too
-    crs = {'init': 'epsg:4269'}
+    crs = 'epsg:4269'
 
     # using shapely create 2 points to allow for measuring of connecting line
     point1 = Point(-72.522365, 41.485054)

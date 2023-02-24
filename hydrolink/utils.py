@@ -25,7 +25,7 @@ def crs_to_nad83(input_point, crs):
     input_point: shapely point
         See shapely.geometry Point method
     input_crs: int
-        Coordinate reference system, default is 4269 which is NAD83
+        EPSG defined coordinate reference system, default is 4269 which is NAD83
 
     Returns
     ----------
@@ -38,11 +38,10 @@ def crs_to_nad83(input_point, crs):
     # create geoseries of shapely point
     pt_gdf = gpd.GeoSeries(input_point)
     # set crs of geoseries, using user provided crs
-    epsg = f'epsg:{str(int(crs))}'
-    crs = {'init': epsg}
-    pt_gdf.crs = crs
+    epsg_crs = f'epsg:{str(int(crs))}'
+    pt_gdf.crs = epsg_crs
     # reproject point
-    pt_gdf = pt_gdf.to_crs({'init': 'epsg:4269'})
+    pt_gdf = pt_gdf.to_crs('epsg:4269')
 
     lon_nad83 = float(pt_gdf[0].x)
     lat_nad83 = float(pt_gdf[0].y)
@@ -173,7 +172,7 @@ def closest_confluence(terminal_node_points, input_point, flowline_geo):
     if len(confluence_points) > 0:
         for point_wkt in confluence_points:
             p = shapely.wkt.loads(point_wkt)
-            confluence_snap_distance_meters = build_distance_line(p, input_point, crs={'init': 'epsg:4269'})
+            confluence_snap_distance_meters = build_distance_line(p, input_point, crs='epsg:4269')
             if closest_confluence_meters is None or closest_confluence_meters > confluence_snap_distance_meters:
                 closest_confluence_meters = confluence_snap_distance_meters
 
@@ -202,12 +201,12 @@ def point_to_line_meters(flowline_geo, input_point):
     snap_xy = flowline_geo_line.interpolate(snap_meas)
     # shapely point that marks snap location (closest location on line to a coordinate)
     flowline_snap_point = Point(snap_xy.x, snap_xy.y)
-    snap_distance_meters = build_distance_line(flowline_snap_point, input_point, crs={'init': 'epsg:4269'})
+    snap_distance_meters = build_distance_line(flowline_snap_point, input_point, crs='epsg:4269')
 
     return flowline_snap_point, snap_distance_meters
 
 
-def build_distance_line(point_1, point_2, crs={'init': 'epsg:4269'}):
+def build_distance_line(point_1, point_2, crs='epsg:4269'):
     """Build line from point1 to point2 an measure distance in meters.
 
     Parameters
@@ -216,8 +215,9 @@ def build_distance_line(point_1, point_2, crs={'init': 'epsg:4269'}):
         Location from which distance calculations are made
     point_2: shapely point
         Location to which distance calculations are made
-    crs: dictionary, default = {'init': 'epsg:4269'}
-        Crs recommended format for geopandas
+    crs: str, default = 'epsg:4269'
+        The value can be anything accepted by pyproj.CRS.from_user_input(), such as an
+        authority string (eg “EPSG:4326”) or a WKT string.
 
     Returns
     ----------
@@ -228,7 +228,7 @@ def build_distance_line(point_1, point_2, crs={'init': 'epsg:4269'}):
     line_geom = LineString([point_1, point_2])
     line_geoseries = gpd.GeoSeries(line_geom)
     line_geoseries.crs = crs
-    line_geoseries = line_geoseries.to_crs({'init': 'epsg:5070'})
+    line_geoseries = line_geoseries.to_crs('epsg:5070')
     line_length_meters = line_geoseries.length[0]
     return line_length_meters
 

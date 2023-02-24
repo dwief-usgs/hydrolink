@@ -164,13 +164,13 @@ class HighResPoint:
 
             - ``'hem_flowline'``: Default query that returns data for flowline features within a buffer of
             a given location. This query uses the following Hydro Event Management (HEM) MapServer layer
-            https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1.
+            https://hydromaintenance.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1.
             - ``'hem_waterbody'``: Query that returns data for the waterbody feature that intersects a given location.
             This query uses the following Hydro Event Management (HEM) MapServer layer
-            https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2.
+            https://hydromaintenance.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2.
             - ``'hem_waterbody_flowline'``: Query that returns data for flowline features within a waterbody.
             This query uses the following Hydro Event Management (HEM) MapServer layer
-            https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1.
+            https://hydromaintenance.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1.
 
         Note(s)
         ----------
@@ -184,19 +184,19 @@ class HighResPoint:
         # hem flowlines within a buffer of coordinates
         if 'hem_flowline' in query:
             q = f"where=ftype%20NOT%20IN%20(420,428,566)&geometryType=esriGeometryPoint&inSR=4269&geometry={self.init_lon},{self.init_lat}&distance={self.buffer_m}&units=esriSRUnit_Meter&outSR=4269&f=JSON&outFields=gnis_name,lengthkm,permanent_identifier,reachcode&returnM=True"
-            base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
+            base_url = 'https://hydromaintenance.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.flowline_query = f"{base_url}{q}"
 
         # hem waterbody returns information about hem waterbodies that the point is within
         if 'hem_waterbody' in query:
             q = f"geometryType=esriGeometryPoint&spatialRel=esriSpatialRelWithin&inSR=4269&geometry={self.init_lon},{self.init_lat}&f=JSON&outFields=permanent_identifier,gnis_name,ftype,reachcode&returnGeometry=False"
-            base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2/query?'
+            base_url = 'https://hydromaintenance.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/2/query?'
             self.waterbody_query = f"{base_url}{q}"
 
         # returns flowlines associated with a waterbody (e.g. reservoir, lake...)
         if 'hem_waterbody_flowline' in query:
             q = f"where=WBAREA_PERMANENT_IDENTIFIER%20IN%20(%27{self.hydrolink_waterbody['nhdhr waterbody permanent identifier']}%27)&outSR=4269&f=JSON&outFields=gnis_name,lengthkm,permanent_identifier,reachcode&returnM=True"
-            base_url = 'https://edits.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
+            base_url = 'https://hydromaintenance.nationalmap.gov/arcgis/rest/services/HEM/NHDHigh/MapServer/1/query?'
             self.flowline_query = f"{base_url}{q}"
 
         # The National Map (including HighResPlus) are included for future reference, not currenlty supported
