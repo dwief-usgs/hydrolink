@@ -14,6 +14,17 @@ HydroLink
 
 
 
+T latest version of hydrolink can be found at https://doi.org/10.5066/P9DGZVXW
+
+
+
+
+
+
+
+
+
+
 
 Python package with methods to hydrolink (address) point information to National Hydrography Datasets using web services. Docs and tests are in progress.
 
